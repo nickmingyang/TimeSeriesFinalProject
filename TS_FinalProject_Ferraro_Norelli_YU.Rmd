@@ -15,7 +15,7 @@ library(tswge)
 library(dplyr)
 library(tidyverse)
 # Set this to data folder for your file
-setwd("/Users/mingyang/Desktop/SMU/TimeSeries/TSFinalProject/data")
+setwd("/Users/mingyang/Desktop/SMU/TimeSeries/TimeSeriesFinalProject/data")
 
 # One data Point 1985-09-01 was imputed by taking average of august and October
 us.electricity = read.csv("averageprice_electricity_US.csv",col.names = c("DATE", "AVG_EP"), 
