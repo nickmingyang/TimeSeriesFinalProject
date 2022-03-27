@@ -1,0 +1,70 @@
+---
+title: "TS_FinalProject_Ferraro_Norelli_YU"
+author: "Ricco, Nicole & Nick"
+date: '2022-03-26'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#libraries
+library(tswge)
+library(dplyr)
+library(tidyverse)
+# Set this to data folder for your file
+setwd("/Users/mingyang/Desktop/SMU/TimeSeries/TSFinalProject/data")
+
+# One data Point 1985-09-01 was imputed by taking average of august and October
+us.electricity = read.csv("averageprice_electricity_US.csv",col.names = c("DATE", "AVG_EP"), 
+                          colClasses = c(DATE="character", AVG_EP="numeric"))
+
+dim(us.electricity)
+head(us.electricity)
+tail(us.electricity)
+str(us.electricity)
+
+cpi = read.csv("CPIAUCSL.csv")
+dim(cpi)
+head(cpi)
+tail(cpi)
+str(cpi)
+
+us.pop = read.csv("POPTHM.csv")
+dim(us.pop)
+head(us.pop)
+tail(us.pop)
+str(us.pop)
+
+gas.price = read.csv("GASREGM.csv")
+dim(gas.price)
+head(gas.price)
+tail(gas.price)
+str(gas.price)
+
+
+plotts.wge(us.electricity$AVG_EP)
+plotts.wge(cpi$CPIAUCSL)
+plotts.wge(gas.price$GASREGM)
+
+which(us.electricity$DATE=="1991-02-01") # 148
+us.electricity = us.electricity[148:520,]
+rownames(us.electricity) <- 1:nrow(us.electricity)
+head(us.electricity)
+
+which(cpi$DATE=="1991-02-01")
+cpi = cpi[148:520,]
+rownames(cpi) <- 1:nrow(cpi)
+head(cpi)
+
+df = us.electricity
+df$CPI = cpi$CPIAUCSL
+df$GASP = gas.price$GASREGM
+head(df)
+
+plotts.wge(df$AVG_EP)
+plotts.wge(df$CPI)
+plotts.wge(df$GASP)
+```
