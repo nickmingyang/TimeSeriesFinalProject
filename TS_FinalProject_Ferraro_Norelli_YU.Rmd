@@ -33,11 +33,6 @@ cpi = cpi %>% filter(!grepl('M13',Period) )
 
 # Read in Gas Price data from same area
 gas.price = read.csv("Dallas_FWA_GAS.csv")
-dim(gas.price)
-head(gas.price)
-tail(gas.price)
-str(gas.price)
-plotts.wge(gas.price$APUS37A7471A)
 
 # Read in Temperature Data & cleaning
 temp = read_excel("DallasAreaTemp.xlsx", sheet = "Sheet1")
@@ -49,15 +44,15 @@ temp = temp %>% tidyr::pivot_longer(
 temp = temp[1:386,]
 
 # subset dataset
-which(dfwa.electricity$DATE=="1990-01-01") # 135
+# which(dfwa.electricity$DATE=="1990-01-01") # 135
 dfwa.electricity = dfwa.electricity[135:520,]
 rownames(dfwa.electricity) <- 1:nrow(dfwa.electricity)
 
-which(cpi$Year==1990 & cpi$Period=="M01")
+# which(cpi$Year==1990 & cpi$Period=="M01")
 cpi = cpi[91:476,]
 rownames(cpi) <- 1:nrow(cpi)
 
-which(gas.price$DATE=="1990-01-01") # 145
+# which(gas.price$DATE=="1990-01-01") # 145
 gas.price = gas.price[145:530,]
 rownames(gas.price) <- 1:nrow(gas.price)
 
