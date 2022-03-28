@@ -9,6 +9,8 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+#### Data Read in & Wrangling
+
 ```{r}
 #libraries
 library(tswge)
@@ -18,29 +20,18 @@ library(readxl)
 # Set this to data folder for your file
 setwd("/Users/mingyang/Desktop/SMU/TimeSeries/TimeSeriesFinalProject/data")
 
-# One data Point 1985-09-01 was imputed by taking average of august and October
+# Read in DFWA electricity Data
 dfwa.electricity = read.csv("AVG_ELEC_DFWA_TX.csv",col.names = c("DATE", "AVG_EP"), 
                           colClasses = c(DATE="character", AVG_EP="character"))
 
-dim(dfwa.electricity)
-head(dfwa.electricity)
-tail(dfwa.electricity)
-str(dfwa.electricity)
-
-plotts.wge(dfwa.electricity$AVG_EP)
-dfwa.electricity %>% filter(AVG_EP == '.')
-
+# Read in CPI data for Southern Urban area
 cpi = read_excel("SouthernUrbanCPI.xlsx",sheet = "BLS Data Series", skip = 11)
-dim(cpi)
-head(cpi)
-tail(cpi)
-str(cpi)
 # Getting rid of Half1 and Half2 which starts with S
 cpi = cpi %>% filter(!grepl('S',Period) )
 # Getting rid of Annual which labeled as M13
 cpi = cpi %>% filter(!grepl('M13',Period) )
-plotts.wge(cpi$Value)
 
+# Read in Gas Price data from same area
 gas.price = read.csv("Dallas_FWA_GAS.csv")
 dim(gas.price)
 head(gas.price)
@@ -48,6 +39,7 @@ tail(gas.price)
 str(gas.price)
 plotts.wge(gas.price$APUS37A7471A)
 
+# Read in Temperature Data & cleaning
 temp = read_excel("DallasAreaTemp.xlsx", sheet = "Sheet1")
 temp = temp %>% tidyr::pivot_longer(
   cols = starts_with("Mon_"),
@@ -60,27 +52,22 @@ temp = temp[1:386,]
 which(dfwa.electricity$DATE=="1990-01-01") # 135
 dfwa.electricity = dfwa.electricity[135:520,]
 rownames(dfwa.electricity) <- 1:nrow(dfwa.electricity)
-head(dfwa.electricity)
 
 which(cpi$Year==1990 & cpi$Period=="M01")
 cpi = cpi[91:476,]
 rownames(cpi) <- 1:nrow(cpi)
-head(cpi)
 
 which(gas.price$DATE=="1990-01-01") # 145
 gas.price = gas.price[145:530,]
 rownames(gas.price) <- 1:nrow(gas.price)
-head(gas.price)
 
 
-
+#### Creating ultimate data frame under variable 'df' ####
 df = dfwa.electricity
 df$CPI = cpi$Value
 df$GAS_P = gas.price$APUS37A7471A
 df$AVG_EP = as.numeric(df$AVG_EP)
 df$TEMP = temp$Temperature
-head(df)
-tail(df)
 
 plotts.wge(df$AVG_EP)
 plotts.wge(df$CPI)
