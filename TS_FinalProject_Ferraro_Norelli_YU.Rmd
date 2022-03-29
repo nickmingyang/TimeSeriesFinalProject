@@ -64,8 +64,66 @@ df$GAS_P = gas.price$APUS37A7471A
 df$AVG_EP = as.numeric(df$AVG_EP)
 df$TEMP = temp$Temperature
 
+#### Due to distribution market deregulation in 1995, team decided to cut the realization
+#### prior to 2000
+# which(df$DATE=="2000-01-01") # 121
+df = df[121:386,]
+rownames(df) <- 1:nrow(df)
+
 plotts.wge(df$AVG_EP)
 plotts.wge(df$CPI)
 plotts.wge(df$GAS_P)
 plotts.wge(df$TEMP)
 ```
+
+#### EDA and Univariate Modeling
+- Short term forecast horizon is determined to be 3 month since it might be helpful for short term enerage usage planning
+- Long term forecast horizen is determined to be 36 month, since it is helpful to forecast pricing few years out for infrastructure and budget planning
+```{r}
+# There seem to be a slowly damping behavior which might support difference the data
+plotts.sample.wge(df$AVG_EP)
+
+# Try overfitting
+est = est.ar.wge(df$AVG_EP, p=16, type='burg')
+# compare this to seasonality of 12 
+factor.wge(phi = c(rep(0,11),1))
+
+# By using overfitting method, 1-B term seems to have the largest absolute reciprocal root which by itself supports differencing the data
+# Additionally, there seem to have a 1-B^12 seasonality, even some of the factors such as 1+B at system frequency of -.5 and 1+1.73B+1B^2 at System frequency of 0.4167 are not as close to the unit circle. Although it might worth exploring s = 12 also
+
+d1 = artrans.wge(df$AVG_EP, phi.tr = 1)
+# with the differenced data there seem to have some sort of seasonal behavior at 12 left
+d1.12 = artrans.wge(d1, phi.tr = c(rep(0,11),1))
+dev.off()
+acf(d1.12)
+# although the transformed d1.12 data appear to be white noise, the large dip at lag 13 suggest that modeling should continue
+# est1.12 = aic5.wge(d1.12, p=0:15, q=0:5) # AIC picked p = 13, q=5
+# est.1.12.bic = aic5.wge(d1.12, p=0:15, q=0:5, type = 'bic') # bic picked p=12, q=0
+# est.1.12.aicc = aic5.wge(d1.12, p=0:15, q=0:5, type = 'aicc') # aicc picked p=13, q=15
+# seems aicc and aic both agrees on p=13 and q=5 is best option.
+params.est = est.arma.wge(d1.12, p=13, q=5)
+acf(params.est$res) # residuals looks about white noise even there is big negative ACF at lag 24 (which might be an issue)
+ljung.wge(params.est$res, K=24) # K=24 reject white noise hypothesis
+ljung.wge(params.est$res, K=48) # K = 48 failed to reject null hypothesis of white noise
+# All models are wrong some are useful - we will proceed for now
+pred.short = fore.arima.wge(df$AVG_EP, phi = params.est$phi, theta = params.est$theta,
+                            d = 1, s = 12, n.ahead = 3, limits = T, lastn = T)
+ASE.short = mean((df$AVG_EP[264:266]-pred.short$f)^2)
+ASE.short # 3.184093e-05 -> 0.0000318
+
+pred.long = fore.arima.wge(df$AVG_EP, phi = params.est$phi, theta = params.est$theta,
+                            d = 1, s = 12, n.ahead = 36, limits = T, lastn = T)
+ASE.long = mean((df$AVG_EP[(266-36+1):266]-pred.long$f)^2)
+ASE.long # 0.00137612
+
+# rolling.res.short = roll.win.rmse.wge(df$AVG_EP,phi = params.est$phi, theta = params.est$theta, d = 1, s = 12, horizon = 3 )
+# rolling.res.short # RMSE = 0.004, ASE = 1.6e-0.5 -> 0.000016, nums of windows = 232
+
+# rolling.res.long = roll.win.rmse.wge(df$AVG_EP,phi = params.est$phi, theta = params.est$theta, d = 1, s = 12, horizon = 36)
+# rolling.res.long # RMSE = 0.019, ASE= 0.000361, num of windows = 199
+
+```
+
+#### Try second univariate model without take 
+
+
