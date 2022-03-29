@@ -124,6 +124,105 @@ ASE.long # 0.00137612
 
 ```
 
-#### Try second univariate model without take 
+#### Trial - Nicole
 
+```{r}
+plotts.sample.wge(df$AVG_EP)
+# slowly damping autocorrelations
+# spectral density peaks at 0 (wandering behavior)
+# possible seasonal peak at 1/12 = .0833333 (monthly)
+# est.ar.wge(df$AVG_EP,p=15,type="burg")
+# factor.wge(phi=c(rep(0,11),1))
+# some evidence of s=12 in overfit, though Abs Recip should be a higher
+
+# take difference and look at acf
+AVE_EP_d1 = artrans.wge(df$AVG_EP,phi.tr=1)
+dev.off()
+acf(AVE_EP_d1)
+plotts.sample.wge(AVE_EP_d1)
+# characteristic seasonal component for 12 months (ACF large at multiples of 12)
+AVE_EP_d1_s12 = artrans.wge(AVE_EP_d1,phi.tr=c(rep(0,11),1))
+plotts.sample.wge(AVE_EP_d1_s12)
+dev.off()
+acf(AVE_EP_d1_s12)
+# doesn't look like white noise
+# aic5.wge(AVE_EP_d1_s12,p=0:15) #13,0 12,2 12,0
+EP_est = est.arma.wge(AVE_EP_d1_s12,p=12)
+
+# short 3 month ARUMA(12,1,0) s=12
+# roll.win.ase.wge(df$AVG_EP,horizon=3,s=12,d=1,phis=EP_est$phi,thetas=EP_est$theta)
+#   2.8495e-05 -> 0.0000285
+f.short = fore.aruma.wge(df$AVG_EP,phi=EP_est$phi,theta=EP_est$theta,s=12,d=1,n.ahead=3,lastn=TRUE)
+ASE.short = mean((df$AVG_EP[264:266]-f.short$f)^2)
+ASE.short #3.595854e-05 -> 0.000036
+
+# long 36 month ARUMA(12,1,0) s=12
+# roll.win.ase.wge(df$AVG_EP,horizon=36,s=12,d=1,phis=EP_est$phi,thetas=EP_est$theta)
+# 0.0004547268
+f.long = fore.arima.wge(df$AVG_EP,phi=EP_est$phi,theta=EP_est$theta,s=12,d=1,n.ahead=36,lastn=TRUE)
+ASE.long = mean((df$AVG_EP[(266-36+1):266]-f.long$f)^2)
+ASE.long 
+#0.001223659
+
+# try other AIC5 options with long forecast: ARUMA(13,1,0) s=12 
+EP_est_13 = est.arma.wge(AVE_EP_d1_s12,p=13)
+# roll.win.ase.wge(df$AVG_EP,horizon=36,s=12,d=1,phis=EP_est_13$phi,thetas=EP_est_13$theta)
+#   0.0004697769
+f = fore.arima.wge(df$AVG_EP,phi=EP_est_13$phi,theta=EP_est_13$theta,s=12,d=1,n.ahead=36,lastn=TRUE)
+mean((df$AVG_EP[(266-36+1):266]-f$f)^2)
+#0.001237814
+
+# try 12,2 ARUMA(12,1,2) s=12
+EP_est_12_2 = est.arma.wge(AVE_EP_d1_s12,p=12,q=2)
+# roll.win.ase.wge(df$AVG_EP,horizon=36,s=12,d=1,phis=EP_est_12_2$phi,thetas=EP_est_12_2$theta)
+#  0.0004835913
+f = fore.arima.wge(df$AVG_EP,phi=EP_est_12_2$phi,theta=EP_est_12_2$theta,s=12,d=1,n.ahead=36,lastn=TRUE)
+mean((df$AVG_EP[(266-36+1):266]-f$f)^2) 
+# 0.00128316
+
+# None of these beat Nick's ARUMA(13,1,5) s=12
+
+# Try another model entirely - take 1st diff then fit an ARMA
+AVE_EP_d1 = artrans.wge(df$AVG_EP,phi.tr=1)
+# aic5.wge(AVE_EP_d1,p=0:15,q=0:5) #15,5
+# aic5.wge(AVE_EP_d1,p=10:20,q=0:5) #15,5
+# aic5.wge(AVE_EP_d1,p=0:15,q=0:5,type="bic") #12,0 13,1
+
+# ARIMA(15,1,5)
+EP_est_15_5 = est.arma.wge(AVE_EP_d1,p=15,q=5)
+# short 3 month
+# roll.win.ase.wge(df$AVG_EP,horizon=3,d=1,phis=EP_est_15_5$phi,thetas=EP_est_15_5$theta)
+#   3.695999e-05
+dev.off()
+f.short.15.5 = fore.arima.wge(df$AVG_EP,phi=EP_est_15_5$phi,theta=EP_est_15_5$theta,d=1,n.ahead=3,lastn=TRUE)
+ASE.short = mean((df$AVG_EP[264:266]-f.short.15.5$f)^2)
+ASE.short #4.216765e-05 -> 0.000042167
+
+# 36 month ARIMA(15,1,5)
+# roll.win.ase.wge(df$AVG_EP,horizon=36,d=1,phis=EP_est_15_5$phi,thetas=EP_est_15_5$theta)
+# 0.0002368869
+f.long.15.5 = fore.arima.wge(df$AVG_EP,phi=EP_est_15_5$phi,theta=EP_est_15_5$theta,d=1,n.ahead=36,lastn=TRUE)
+ASE.long = mean((df$AVG_EP[(266-36+1):266]-f.long.15.5$f)^2)
+ASE.long 
+# 0.0001089089
+
+# ARIMA(12,1,0)
+EP_est_12_0 = est.arma.wge(AVE_EP_d1,p=12)
+# short 3 month
+# roll.win.ase.wge(df$AVG_EP,horizon=3,d=1,phis=EP_est_12_0$phi)
+#  2.661653e-05
+f.short.12.0 = fore.arima.wge(df$AVG_EP,phi=EP_est_12_0$phi,d=1,n.ahead=3,lastn=TRUE)
+ASE.short = mean((df$AVG_EP[264:266]-f.short.12.0$f)^2)
+ASE.short # 8.029078e-05 -> 0.0000893
+
+# 36 month ARIMA(12,1,0)
+# roll.win.ase.wge(df$AVG_EP,horizon=36,d=1,phis=EP_est_12_0$phi)
+# 0.0002323361
+f.long.12.0 = fore.arima.wge(df$AVG_EP,phi=EP_est_12_0$phi,d=1,n.ahead=36,lastn=TRUE)
+ASE.long = mean((df$AVG_EP[(266-36+1):266]-f.long.12.0$f)^2)
+ASE.long 
+# 0.0001502498
+
+
+```
 
