@@ -136,6 +136,41 @@ ASE.long # 0.0001725023
 
 ```
 
+#### Try signal plus noise model
+```{r}
+x = df$AVG_EP
+n = length(x)
+t = 1:n
+d = lm(x~t)
+# x.z are the residuals from the regression line
+x.z = x-d$coefficients[1] - d$coefficients[2]*t
+plotts.sample.wge(x.z)
+
+ar.z = aic.wge(x.z, p=0:15)
+x.trans = artrans.wge(x, phi.tr = ar.z$phi)
+t.trans = artrans.wge(t, phi.tr = ar.z$phi)
+fit = lm(x.trans~ t.trans)
+summary(fit)
+# As can be seen, after account for the serial correlation (AR(14)), there is strong evidence to suggest that the slope is significantly different from zero (pvalue < 0.0001). So we will take the trend out and proceed
+
+# try bootstrapping method just to be sure
+wbg.boot.wge(x, sn=103)
+# Bootstrap-based test for trend failed to reject with p-value = 0.1078, however we will proceed to try out how using trend helps
+ar.est = est.ar.wge(x = x.z, p=14, type = 'burg')
+dev.off()
+acf(ar.est$res)
+ljung.wge(ar.est$res)
+ljung.wge(ar.est$res, K=48)
+# both tests reject white noise
+m2.result = fore.sigplusnoise.wge(x, linear = TRUE, max.p = 15, n.ahead = 3, lastn = TRUE, limits=TRUE)
+ASE.short.m2 = mean((df$AVG_EP[264:266]-m2.result$f)^2)
+ASE.short.m2 # 6.718437e-05 -> 0.0000672
+m2.result.long = fore.sigplusnoise.wge(x, linear = TRUE, max.p = 15, n.ahead = 36, lastn = TRUE, limits=TRUE)
+ASE.long.m2 = mean((df$AVG_EP[(266-36+1):266]-m2.result.long$f)^2)
+ASE.long.m2 # 0.0001268439
+
+```
+
 #### Trial - Nicole
 
 ```{r}
