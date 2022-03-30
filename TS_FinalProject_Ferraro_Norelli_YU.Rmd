@@ -131,7 +131,7 @@ ASE.long # 0.0001725023
 # rolling.res.short = roll.win.rmse.wge(df$AVG_EP,phi = model1.param$model.coef, theta = params.est$theta, d = 1, horizon = 3 )
 # rolling.res.short # RMSE = 0.004, ASE = 1.6e-0.5 -> 0.000016, nums of windows = 239
 
-rolling.res.long = roll.win.rmse.wge(df$AVG_EP,phi = model1.param$model.coef, theta = params.est$theta, d = 1, horizon = 36)
+# rolling.res.long = roll.win.rmse.wge(df$AVG_EP,phi = model1.param$model.coef, theta = params.est$theta, d = 1, horizon = 36)
 # rolling.res.long # RMSE = 0.014, ASE= 0.000196, num of windows = 206
 
 ```
