@@ -100,9 +100,9 @@ ljung.wge(d1.12, K=24) # K=24 reject white noise hypothesis
 ljung.wge(d1.12, K=48) # K = 48 reject white noise 
 # Thus models require further modeling
 
-est1.12 = aic5.wge(d1.12, p=0:15, q=0:5) # AIC picked p = 7, q=4
-est.1.12.bic = aic5.wge(d1.12, p=0:15, q=0:5, type = 'bic') # bic picked p=0, q=0
-est.1.12.aicc = aic5.wge(d1.12, p=0:15, q=0:5, type = 'aicc') # aicc picked p=1, q=0
+# est1.12 = aic5.wge(d1.12, p=0:15, q=0:5) # AIC picked p = 7, q=4
+# est.1.12.bic = aic5.wge(d1.12, p=0:15, q=0:5, type = 'bic') # bic picked p=0, q=0
+# est.1.12.aicc = aic5.wge(d1.12, p=0:15, q=0:5, type = 'aicc') # aicc picked p=1, q=0
 # seems AIC leaning towards a fancy model, while bic leaning towards white noise.
 # I will attempt something in the middle by using AR(1) instead
 params.est = est.arma.wge(d1.12, p=1)
@@ -168,6 +168,28 @@ ASE.short.m2 # 6.718437e-05 -> 0.0000672
 m2.result.long = fore.sigplusnoise.wge(x, linear = TRUE, max.p = 15, n.ahead = 36, lastn = TRUE, limits=TRUE)
 ASE.long.m2 = mean((df$AVG_EP[(266-36+1):266]-m2.result.long$f)^2)
 ASE.long.m2 # 0.0001268439
+
+```
+
+#### Visualization
+```{r}
+library(ggplot2)
+df[['DATE']] <- as.Date(df[['DATE']], format='%Y-%m-%d')
+
+# Convert short term prediction to dataframe
+pred.short.df = data.frame(Date = df$DATE[264:266], prediction = pred.short$f, upper = pred.short$ul, lower = pred.short$ll)
+
+colors <- c("Actual Price" = "#FC4E07", "Predicted Price" = "#E7B800", "Prediction Limit"= "#E7B800")
+ggplot(data = df[260:266,], aes(x=DATE, y=AVG_EP, color="Actual Price"))+
+  geom_line( size = 1) +
+  ggtitle("Short term average Electricity price forecast")+xlab("Date")+ylab("Average Price") +
+  geom_line(data = pred.short.df,aes(x=Date, y=prediction), color="#FC4E07", size=1.1) +
+  geom_point(data = pred.short.df,aes(x=Date, y=prediction), color="#FC4E07", size=1.5)+
+  geom_line(data = pred.short.df,aes(x=Date, y=upper), color="#E7B800", size=1.1)+
+  geom_point(data = pred.short.df,aes(x=Date, y=upper), color="#E7B800", size=1.1)+
+  geom_line(data = pred.short.df,aes(x=Date, y=lower), color="#E7B800", size=1.1)+ 
+  geom_point(data = pred.short.df,aes(x=Date, y=lower), color="#E7B800", size=1.1)+
+  scale_color_manual(values = colors) + theme_classic()
 
 ```
 
