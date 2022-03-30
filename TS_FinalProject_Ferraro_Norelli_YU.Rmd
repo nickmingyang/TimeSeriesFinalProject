@@ -93,34 +93,46 @@ factor.wge(phi = c(rep(0,11),1))
 
 d1 = artrans.wge(df$AVG_EP, phi.tr = 1)
 # with the differenced data there seem to have some sort of seasonal behavior at 12 left
-d1.12 = artrans.wge(d1, phi.tr = c(rep(0,11),1))
+d1.12 = artrans.wge(d1, phi.tr = c(rep(0,11),0.4))
 dev.off()
-acf(d1.12)
-# although the transformed d1.12 data appear to be white noise, the large dip at lag 13 suggest that modeling should continue
-# est1.12 = aic5.wge(d1.12, p=0:15, q=0:5) # AIC picked p = 13, q=5
-# est.1.12.bic = aic5.wge(d1.12, p=0:15, q=0:5, type = 'bic') # bic picked p=12, q=0
-# est.1.12.aicc = aic5.wge(d1.12, p=0:15, q=0:5, type = 'aicc') # aicc picked p=13, q=15
-# seems aicc and aic both agrees on p=13 and q=5 is best option.
-params.est = est.arma.wge(d1.12, p=13, q=5)
-acf(params.est$res) # residuals looks about white noise even there is big negative ACF at lag 24 (which might be an issue)
+acf(d1.12) # AIC looks about white noise
+ljung.wge(d1.12, K=24) # K=24 reject white noise hypothesis
+ljung.wge(d1.12, K=48) # K = 48 reject white noise 
+# Thus models require further modeling
+
+est1.12 = aic5.wge(d1.12, p=0:15, q=0:5) # AIC picked p = 7, q=4
+est.1.12.bic = aic5.wge(d1.12, p=0:15, q=0:5, type = 'bic') # bic picked p=0, q=0
+est.1.12.aicc = aic5.wge(d1.12, p=0:15, q=0:5, type = 'aicc') # aicc picked p=1, q=0
+# seems AIC leaning towards a fancy model, while bic leaning towards white noise.
+# I will attempt something in the middle by using AR(1) instead
+params.est = est.arma.wge(d1.12, p=1)
+acf(params.est$res) # residuals looks about white noise
 ljung.wge(params.est$res, K=24) # K=24 reject white noise hypothesis
-ljung.wge(params.est$res, K=48) # K = 48 failed to reject null hypothesis of white noise
-# All models are wrong some are useful - we will proceed for now
-pred.short = fore.arima.wge(df$AVG_EP, phi = params.est$phi, theta = params.est$theta,
-                            d = 1, s = 12, n.ahead = 3, limits = T, lastn = T)
+ljung.wge(params.est$res, K=48) # K = 48reject null hypothesis of white noise
+
+# Try facier model identified by AIC
+params.est = est.arma.wge(d1.12, p=7,q=4)
+acf(params.est$res) # residuals looks about white noise
+ljung.wge(params.est$res, K=24) # K=24 fail to reject white noise hypothesis
+ljung.wge(params.est$res, K=48) # K = 48 fail to reject null hypothesis of white noise
+
+# All models are wrong some are useful - we will proceed with fancier model for now
+model1.param = mult.wge(fac1 = params.est$phi, fac2 = c(rep(0,11),0.4))
+pred.short = fore.arima.wge(df$AVG_EP, phi = model1.param$model.coef, theta = params.est$theta,
+                            d = 1, n.ahead = 3, limits = T, lastn = T)
 ASE.short = mean((df$AVG_EP[264:266]-pred.short$f)^2)
-ASE.short # 3.184093e-05 -> 0.0000318
+ASE.short # 3.184093e-05 -> 0.0000318  #New 5.988891e-05 -> 0.0000599
 
-pred.long = fore.arima.wge(df$AVG_EP, phi = params.est$phi, theta = params.est$theta,
-                            d = 1, s = 12, n.ahead = 36, limits = T, lastn = T)
+pred.long = fore.arima.wge(df$AVG_EP, phi = model1.param$model.coef, theta = params.est$theta,
+                            d = 1, n.ahead = 36, limits = T, lastn = T)
 ASE.long = mean((df$AVG_EP[(266-36+1):266]-pred.long$f)^2)
-ASE.long # 0.00137612
+ASE.long # 0.0001725023
 
-# rolling.res.short = roll.win.rmse.wge(df$AVG_EP,phi = params.est$phi, theta = params.est$theta, d = 1, s = 12, horizon = 3 )
-# rolling.res.short # RMSE = 0.004, ASE = 1.6e-0.5 -> 0.000016, nums of windows = 232
+# rolling.res.short = roll.win.rmse.wge(df$AVG_EP,phi = model1.param$model.coef, theta = params.est$theta, d = 1, horizon = 3 )
+# rolling.res.short # RMSE = 0.004, ASE = 1.6e-0.5 -> 0.000016, nums of windows = 239
 
-# rolling.res.long = roll.win.rmse.wge(df$AVG_EP,phi = params.est$phi, theta = params.est$theta, d = 1, s = 12, horizon = 36)
-# rolling.res.long # RMSE = 0.019, ASE= 0.000361, num of windows = 199
+rolling.res.long = roll.win.rmse.wge(df$AVG_EP,phi = model1.param$model.coef, theta = params.est$theta, d = 1, horizon = 36)
+# rolling.res.long # RMSE = 0.014, ASE= 0.000196, num of windows = 206
 
 ```
 
