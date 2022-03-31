@@ -316,12 +316,11 @@ forecast_arma = fore.aruma.wge(df$AVG_EP, phi=aic_lambda_corrected_ricco$phi, th
 forecast_arma_ricco = fore.aruma.wge(df$AVG_EP, phi=overfit_ar_30_i1_ricco$phi,n.ahead = 36,limits = FALSE, plot=TRUE, lastn = TRUE)
 ## ^^^ YUCK! that looks terrible. let's try a different approach. 
 
-
 # try finding best long non-stationary estimates Seasonality by rolling window rmse (this has O(n^2) runtime complexity)
 best_s_ricco = 0
 best_d_ricco = 0
-max_s_ricco = 100
-max_d_ricco = 3
+max_s_ricco = 10
+max_d_ricco = 2
 best_rsme_seasonality_search_and_wandering_search = 10000.0
 for (s_try in 0:max_s_ricco) {
   for (d_try in 0:max_d_ricco) {
@@ -342,17 +341,28 @@ AVG_E_i1_ricco = artrans.wge(df$AVG_EP, c(1))
 # now find best p and q with a rolling window wide grid search
 best_p_wide_ricco = 0
 best_q_wide_ricco = 0
-max_p_wide_ricco = 100
-max_q_wide_ricco = 10
 best_cost_wide_ricco = 10000
 best_rsme_s0_d1_p_search_wide = 10000.0
 best_last36_ase_wide = 10000.0
-# to reduce run-time complexity, do a wide search first
-for(q_try in seq(0, max_q_wide_ricco, 2)) {
-  for (p_try in seq(1, max_p_wide_ricco, 5)) {
+q_seq_wide_ricco = seq(1, 11, 5)
+p_seq_wide_ricco = seq(1, 31, 10)
+for(q_try in q_seq_wide_ricco) {
+  for (p_try in p_seq_wide_ricco) {
     was_error = FALSE
     tryCatch(expr = {
+      print(paste("trying p: ", p_try, "and q: ", q_try))
       capture.output(est_p_q_search_ricco <- est.arma.wge(AVG_E_i1_ricco, p=p_try, q=q_try), file='NUL')    
+      rolling.res.long_ricco = roll.win.rmse.wge_ricco(df$AVG_EP, phi=est_p_q_search_ricco$phi, theta=est_p_q_search_ricco$theta, d=1, s=0,  horizon = 36, plot=FALSE)
+      capture.output(f_ricco <- fore.aruma.wge(df$AVG_EP, phi=est_p_q_search_ricco$phi, d=1, s=0, n.ahead=36, lastn=TRUE, plot=FALSE))
+      prediction_ase_ricco = mean((df$AVG_EP[(266-35):266]-f$f)^2) 
+      # weight last 36 higher because they are the forecasts we should care about most
+      cost_ricco = (rolling.res.long_ricco$rwRMSE + prediction_ase_ricco)/2
+      if(cost_ricco < best_cost_wide_ricco) {
+        best_cost_wide_ricco = cost_ricco
+        best_rsme_s0_d1_p_search_wide = rolling.res.long_ricco$rwRMSE
+        best_last36_ase_wide = prediction_ase_ricco
+        best_p_wide_ricco = p_try
+      }
     },
     error = function(e) {
       print(paste("an error occured for p: ", p_try, "and q: ", q_try))
@@ -360,39 +370,36 @@ for(q_try in seq(0, max_q_wide_ricco, 2)) {
     })
     if(was_error)
       next
-  
-    rolling.res.long_ricco = roll.win.rmse.wge_ricco(df$AVG_EP, phi=est_p_q_search_ricco$phi, theta=est_p_q_search_ricco$theta, d=1, s=0,  horizon = 36, plot=FALSE)
-    capture.output(f_ricco <- fore.aruma.wge(df$AVG_EP, phi=est_p_q_search_ricco$phi, d=1, s=0, n.ahead=36, lastn=TRUE, plot=FALSE))
-    prediction_ase_ricco = mean((df$AVG_EP[(266-35):266]-f$f)^2) 
-    # weight last 36 higher because they are the forecasts we should care about most
-    cost_ricco = (rolling.res.long_ricco$rwRMSE + prediction_ase_ricco)/2
-    if(cost_ricco < best_cost_wide_ricco) {
-      best_cost_wide_ricco = cost_ricco
-      best_rsme_s0_d1_p_search_wide = rolling.res.long_ricco$rwRMSE
-      best_last36_ase_wide = prediction_ase_ricco
-      best_p_wide_ricco = p_try
-    }
   }
 }
 print(paste("best long + immediate rolling window p with wide search was:", best_p_wide_ricco))
 print(paste("best long + immediate rolling window q with wide search was:", best_q_wide_ricco))
 
 # now find best p and q with a rolling window narrow grid search
-best_p_ricco = 0
-best_q_ricco = 0
-max_p_ricco = 100
-max_q_ricco = 10
-best_cost_ricco = 10000
-best_rsme_s0_d1_p_search = 10000.0
-best_last36_ase = 10000.0
-best_phi_estimates = NULL
-best_theta_estimates = NULL
-# to reduce run-time complexity, do a wide search first
-for(q_try in seq(0, max_q_ricco, 2)) {
-  for (p_try in seq(1, max_p_ricco, 5)) {
+best_p_narrow_ricco = 0
+best_q_narrow_ricco = 0
+best_cost_narrow_ricco = 10000
+best_rsme_s0_d1_p_search_narrow = 10000.0
+best_last36_ase_narrow = 10000.0
+q_seq_narrow_ricco = seq(1, 4, 1)
+p_seq_narrow_ricco = seq(25, 31, 1)
+for(q_try in q_seq_narrow_ricco) {
+  for (p_try in p_seq_narrow_ricco) {
     was_error = FALSE
     tryCatch(expr = {
+      print(paste("trying p: ", p_try, "and q: ", q_try))
       capture.output(est_p_q_search_ricco <- est.arma.wge(AVG_E_i1_ricco, p=p_try, q=q_try), file='NUL')    
+      rolling.res.long_ricco = roll.win.rmse.wge_ricco(df$AVG_EP, phi=est_p_q_search_ricco$phi, theta=est_p_q_search_ricco$theta, d=1, s=0,  horizon = 36, plot=FALSE)
+      capture.output(f_ricco <- fore.aruma.wge(df$AVG_EP, phi=est_p_q_search_ricco$phi, d=1, s=0, n.ahead=36, lastn=TRUE, plot=FALSE))
+      prediction_ase_ricco = mean((df$AVG_EP[(266-35):266]-f$f)^2) 
+      # weight last 36 higher because they are the forecasts we should care about most
+      cost_ricco = (rolling.res.long_ricco$rwRMSE + prediction_ase_ricco)/2
+      if(cost_ricco < best_cost_narrow_ricco) {
+        best_cost_narrow_ricco = cost_ricco
+        best_rsme_s0_d1_p_search_narrow = rolling.res.long_ricco$rwRMSE
+        best_last36_ase_narrow = prediction_ase_ricco
+        best_p_narrow_ricco = p_try
+      }
     },
     error = function(e) {
       print(paste("an error occured for p: ", p_try, "and q: ", q_try))
@@ -400,30 +407,19 @@ for(q_try in seq(0, max_q_ricco, 2)) {
     })
     if(was_error)
       next
-  
-    rolling.res.long_ricco = roll.win.rmse.wge_ricco(df$AVG_EP, phi=est_p_q_search_ricco$phi, theta=est_p_q_search_ricco$theta, d=1, s=0,  horizon = 36, plot=FALSE)
-    capture.output(f_ricco <- fore.aruma.wge(df$AVG_EP, phi=est_p_q_search_ricco$phi, d=1, s=0, n.ahead=36, lastn=TRUE, plot=FALSE))
-    prediction_ase_ricco = mean((df$AVG_EP[(266-35):266]-f$f)^2) 
-    # weight last 36 higher because they are the forecasts we should care about most
-    cost_ricco = (rolling.res.long_ricco$rwRMSE + prediction_ase_ricco)/2
-    if(cost_ricco < best_cost_ricco) {
-      best_cost_ricco = cost_ricco
-      best_rsme_s0_d1_p_search = rolling.res.long_ricco$rwRMSE
-      best_last36_ase = prediction_ase_ricco
-      best_p_ricco = p_try
-      best_phi_estimates = est_p_q_search_ricco$phi
-      best_theta_estimates = est_p_q_search_ricco$theta
-    }
   }
 }
-print(paste("best long + immediate rolling window p with wide search was:", best_p_ricco))
-print(paste("best long + immediate rolling window q with wide search was:", best_q_ricco))
+print(paste("best long + immediate rolling window p with narrow search was:", best_p_narrow_ricco))
+print(paste("best long + immediate rolling window q with narrow search was:", best_q_narrow_ricco))
+
+best_rsme_s0_d1_p_search_narrow^2
+best_last36_ase_narrow
 
 
-# best P was p=72 WOW! A huge and complex model BUT it was rolling window RSME verified!
-#  I wonder how the ARIMA(72,1,0) would do on future, unseen data. it’s probably just REALLY good at fitting the signal we have, even if we rolling window verify. true crossvalidation would be better, if we had the data.
+# best P was p=31 q=0, WOW! A huge and complex model BUT it was rolling window RSME verified!
+#  I wonder how the ARIMA(31,1,0) would do on future, unseen data. it’s probably just REALLY good at fitting the signal we have, even if we rolling window verify. true cross-validation would be better, if we had the data.
 print(paste("best long rolling (36) ase was:", best_rsme_s0_d1_p_search^2, "for p:", best_p_ricco, "for q:", best_q_ricco, "and d = 1"))
-f_ricco = fore.aruma.wge(df$AVG_EP, phi=best_phi_estimates, theta=best_theta_estimates, d = 1, s=0, n.ahead=36, lastn=TRUE)
+f_ricco = fore.aruma.wge(df$AVG_EP, phi=best_phi_estimates, d = 1, s=0, n.ahead=36, lastn=TRUE)
 prediction_ase_ricco = mean((df$AVG_EP[(266-35):266]-f$f)^2) 
 print(paste("Last 36 ASE was s:", prediction_ase_ricco, "for p:", best_p_ricco, "and d = 1"))
 
@@ -664,4 +660,5 @@ else
   
   }
 ```
+
 
