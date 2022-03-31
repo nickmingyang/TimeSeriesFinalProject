@@ -18,7 +18,7 @@ library(dplyr)
 library(tidyverse)
 library(readxl)
 # Set this to data folder for your file
-setwd("/Users/mingyang/Desktop/SMU/TimeSeries/TimeSeriesFinalProject/data")
+setwd("/Users/riccoferraro/Documents/SMU/TimeSeries/TimeSeriesFinalProject/data")
 
 # Read in DFWA electricity Data
 dfwa.electricity = read.csv("AVG_ELEC_DFWA_TX.csv",col.names = c("DATE", "AVG_EP"), 
@@ -47,6 +47,7 @@ temp = temp[1:386,]
 # which(dfwa.electricity$DATE=="1990-01-01") # 135
 dfwa.electricity = dfwa.electricity[135:520,]
 rownames(dfwa.electricity) <- 1:nrow(dfwa.electricity)
+dfwa.electricity
 
 # which(cpi$Year==1990 & cpi$Period=="M01")
 cpi = cpi[91:476,]
@@ -110,7 +111,7 @@ acf(params.est$res) # residuals looks about white noise
 ljung.wge(params.est$res, K=24) # K=24 reject white noise hypothesis
 ljung.wge(params.est$res, K=48) # K = 48reject null hypothesis of white noise
 
-# Try facier model identified by AIC
+# Try fancier model identified by AIC
 params.est = est.arma.wge(d1.12, p=7,q=4)
 acf(params.est$res) # residuals looks about white noise
 ljung.wge(params.est$res, K=24) # K=24 fail to reject white noise hypothesis
@@ -221,7 +222,7 @@ EP_est = est.arma.wge(AVE_EP_d1_s12,p=12)
 # short 3 month ARUMA(12,1,0) s=12
 # roll.win.ase.wge(df$AVG_EP,horizon=3,s=12,d=1,phis=EP_est$phi,thetas=EP_est$theta)
 #   2.8495e-05 -> 0.0000285
-f.short = fore.aruma.wge(df$AVG_EP,phi=EP_est$phi,theta=EP_est$theta,s=12,d=1,n.ahead=3,lastn=TRUE)
+f.short = fore.arima.wge(df$AVG_EP,phi=EP_est$phi,theta=EP_est$theta,s=12,d=1,n.ahead=3,lastn=TRUE)
 ASE.short = mean((df$AVG_EP[264:266]-f.short$f)^2)
 ASE.short #3.595854e-05 -> 0.000036
 
@@ -293,5 +294,374 @@ ASE.long
 # 0.0001502498
 
 
+```
+
+#### Trial - Ricco
+```{r}
+plotts.sample.wge(df$AVG_EP)
+
+## over-fit like our lives depend on it
+overfit_ar_30_ricco=est.ar.wge(df$AVG_EP,p=50, type='burg')
+
+# Clearly a 1-B in there. try removing it and over-fitting again. 
+AVG_E_i1_ricco = artrans.wge(df$AVG_EP, c(1))
+overfit_ar_30_i1_ricco=est.ar.wge(AVG_E_i1_ricco,p=20, type='burg')
+# nonstationary_lambda = mult.wge(fac1=c(1-1.7276B+0.9942B^2), c(1+0.9951B), c(1+0.0130B+0.9896B^2), c(1+0.9916B+0.9889B^2))
+nonstationary_lambda_ricco = mult.wge(c(1.7276,-0.9942), c(-0.9951), c(-0.0130,-0.9896), c(-0.9916,-0.9889))
+nonstationary_lambda$model.coef
+AVG_E_lambda_corrected_ricco = artrans.wge(df$AVG_EP, c(nonstationary_lambda$model.coef))
+aic_lambda_corrected_ricco = aic.wge(AVG_E_lambda_corrected_ricco, p=0:12, q=0:5, type="bic")
+forecast_arma = fore.aruma.wge(df$AVG_EP, phi=aic_lambda_corrected_ricco$phi, theta=aic_lambda_corrected_ricco$theta, d=1, n.ahead = 36,limits = FALSE, plot=TRUE, lastn = TRUE, lambda =c(nonstationary_lambda$model.coef))
+
+forecast_arma_ricco = fore.aruma.wge(df$AVG_EP, phi=overfit_ar_30_i1_ricco$phi,n.ahead = 36,limits = FALSE, plot=TRUE, lastn = TRUE)
+## ^^^ YUCK! that looks terrible. let's try a different approach. 
+
+
+# try finding best long non-stationary estimates Seasonality by rolling window rmse (this has O(n^2) runtime complexity)
+best_s_ricco = 0
+best_d_ricco = 0
+max_s_ricco = 100
+max_d_ricco = 3
+best_rsme_seasonality_search_and_wandering_search = 10000.0
+for (s_try in 0:max_s_ricco) {
+  for (d_try in 0:max_d_ricco) {
+    rolling.res.long_ricco = roll.win.rmse.wge_ricco(df$AVG_EP, d = d_try, s=s_try, horizon = 36, plot=FALSE)
+    if(rolling.res.long_ricco$rwRMSE < best_rsme_seasonality_search_and_wandering_search) {
+      best_rsme_seasonality_search_and_wandering_search = rolling.res.long_ricco$rwRMSE
+      best_s_ricco = s_try
+      best_d_ricco = d_try
+    }
+  }
+}
+print(paste("best long rolling window s was:", best_s_ricco))
+print(paste("best long rolling window d was:", best_d_ricco))
+
+# best s=0 and d=1 
+AVG_E_i1_ricco = artrans.wge(df$AVG_EP, c(1))
+
+# now find best p and q with a rolling window wide grid search
+best_p_wide_ricco = 0
+best_q_wide_ricco = 0
+max_p_wide_ricco = 100
+max_q_wide_ricco = 10
+best_cost_wide_ricco = 10000
+best_rsme_s0_d1_p_search_wide = 10000.0
+best_last36_ase_wide = 10000.0
+# to reduce run-time complexity, do a wide search first
+for(q_try in seq(0, max_q_wide_ricco, 2)) {
+  for (p_try in seq(1, max_p_wide_ricco, 5)) {
+    was_error = FALSE
+    tryCatch(expr = {
+      capture.output(est_p_q_search_ricco <- est.arma.wge(AVG_E_i1_ricco, p=p_try, q=q_try), file='NUL')    
+    },
+    error = function(e) {
+      print(paste("an error occured for p: ", p_try, "and q: ", q_try))
+      was_error = TRUE
+    })
+    if(was_error)
+      next
+  
+    rolling.res.long_ricco = roll.win.rmse.wge_ricco(df$AVG_EP, phi=est_p_q_search_ricco$phi, theta=est_p_q_search_ricco$theta, d=1, s=0,  horizon = 36, plot=FALSE)
+    capture.output(f_ricco <- fore.aruma.wge(df$AVG_EP, phi=est_p_q_search_ricco$phi, d=1, s=0, n.ahead=36, lastn=TRUE, plot=FALSE))
+    prediction_ase_ricco = mean((df$AVG_EP[(266-35):266]-f$f)^2) 
+    # weight last 36 higher because they are the forecasts we should care about most
+    cost_ricco = (rolling.res.long_ricco$rwRMSE + prediction_ase_ricco)/2
+    if(cost_ricco < best_cost_wide_ricco) {
+      best_cost_wide_ricco = cost_ricco
+      best_rsme_s0_d1_p_search_wide = rolling.res.long_ricco$rwRMSE
+      best_last36_ase_wide = prediction_ase_ricco
+      best_p_wide_ricco = p_try
+    }
+  }
+}
+print(paste("best long + immediate rolling window p with wide search was:", best_p_wide_ricco))
+print(paste("best long + immediate rolling window q with wide search was:", best_q_wide_ricco))
+
+# now find best p and q with a rolling window narrow grid search
+best_p_ricco = 0
+best_q_ricco = 0
+max_p_ricco = 100
+max_q_ricco = 10
+best_cost_ricco = 10000
+best_rsme_s0_d1_p_search = 10000.0
+best_last36_ase = 10000.0
+best_phi_estimates = NULL
+best_theta_estimates = NULL
+# to reduce run-time complexity, do a wide search first
+for(q_try in seq(0, max_q_ricco, 2)) {
+  for (p_try in seq(1, max_p_ricco, 5)) {
+    was_error = FALSE
+    tryCatch(expr = {
+      capture.output(est_p_q_search_ricco <- est.arma.wge(AVG_E_i1_ricco, p=p_try, q=q_try), file='NUL')    
+    },
+    error = function(e) {
+      print(paste("an error occured for p: ", p_try, "and q: ", q_try))
+      was_error = TRUE
+    })
+    if(was_error)
+      next
+  
+    rolling.res.long_ricco = roll.win.rmse.wge_ricco(df$AVG_EP, phi=est_p_q_search_ricco$phi, theta=est_p_q_search_ricco$theta, d=1, s=0,  horizon = 36, plot=FALSE)
+    capture.output(f_ricco <- fore.aruma.wge(df$AVG_EP, phi=est_p_q_search_ricco$phi, d=1, s=0, n.ahead=36, lastn=TRUE, plot=FALSE))
+    prediction_ase_ricco = mean((df$AVG_EP[(266-35):266]-f$f)^2) 
+    # weight last 36 higher because they are the forecasts we should care about most
+    cost_ricco = (rolling.res.long_ricco$rwRMSE + prediction_ase_ricco)/2
+    if(cost_ricco < best_cost_ricco) {
+      best_cost_ricco = cost_ricco
+      best_rsme_s0_d1_p_search = rolling.res.long_ricco$rwRMSE
+      best_last36_ase = prediction_ase_ricco
+      best_p_ricco = p_try
+      best_phi_estimates = est_p_q_search_ricco$phi
+      best_theta_estimates = est_p_q_search_ricco$theta
+    }
+  }
+}
+print(paste("best long + immediate rolling window p with wide search was:", best_p_ricco))
+print(paste("best long + immediate rolling window q with wide search was:", best_q_ricco))
+
+
+# best P was p=72 WOW! A huge and complex model BUT it was rolling window RSME verified!
+#  I wonder how the ARIMA(72,1,0) would do on future, unseen data. it’s probably just REALLY good at fitting the signal we have, even if we rolling window verify. true crossvalidation would be better, if we had the data.
+print(paste("best long rolling (36) ase was:", best_rsme_s0_d1_p_search^2, "for p:", best_p_ricco, "for q:", best_q_ricco, "and d = 1"))
+f_ricco = fore.aruma.wge(df$AVG_EP, phi=best_phi_estimates, theta=best_theta_estimates, d = 1, s=0, n.ahead=36, lastn=TRUE)
+prediction_ase_ricco = mean((df$AVG_EP[(266-35):266]-f$f)^2) 
+print(paste("Last 36 ASE was s:", prediction_ase_ricco, "for p:", best_p_ricco, "and d = 1"))
+
+# interestingly the ARIMA(72,1,0) does poorly on the last few samples! maybe a slightly different process? 
+#If we look at the plot we can see that there is periodicity in the data until JUST when the forecasts start. I believe it's this periodicity that is messing things up. 
+
+# residuals look VERY white, maybe a slight amount of heteroskeascitity and trend at the very end? 
+plotts.sample.wge(f_ricco$resid)
+
+# interestingly, ljung box test cannot reject non-stationarity in the residuals! This seems weird. 
+ljung.wge(f_ricco$resid)
+
+```
+
+Appendix:
+A Modified version of current roll.win.rmse.wge in github (uses `fore.aruma.wge` from cran, and doesn't print), to use the latest tswge, replace `fore.aruma.wge` with `fore.arima.wge`)
+```{r} 
+#Rolling Window RMSE Function
+# series is the array of the series
+# horizon is how far you want to predict into the future
+# d is the order of the differencing: (1-B^)^d
+# s is the order of the seasonality: (1-B^s)
+# phi = coefficients of the stationary AR term
+# theta = coefficients of the invertible MA term
+
+# It simply takes the given horizon and the model in the form of s,d,phis and 
+# thetas and figures out how many windows it can create in the data (series) and then calculates the ASE for each window.  
+#The output is the average off all the ASEs from each individual window.  
+
+roll.win.rmse.wge_ricco = function(series, horizon = 2, s = 0, d = 0, phi = 0, theta = 0, plot=FALSE)
+{
+
+  
+  #DEFINE fore.arma.wge2
+  
+  fore.arma.wge2=function(x,phi=0,theta=0,n.ahead=5,lastn=FALSE, plot=FALSE,alpha=.05,limits=TRUE, xbar2 = NULL)
+  {
+    # lastn=TRUE indicates that the last n data values are to be forecast
+    # lastn=FALSE (default) indicates we want foreacts for n values beyond the end of the realization
+    n=length(x)
+    p=length(phi)
+    if(sum(phi^2)==0) {p=0}
+    q=length(theta)
+    if(sum(theta^2)==0) {q=0}
+    #resid=rep(0,n)
+    npn.ahead=n+n.ahead
+    xhat=rep(0,npn.ahead)
+    if(is.null(xbar2))
+    {
+      xbar=mean(x)
+    }
+    else
+    {
+      xbar = xbar2
+    }
+    
+    const=1
+    if (p > 0) {for(jp in 1:p) {const=const-phi[jp]}}
+    #
+    #
+    # Calculate Box-Jenkins Forecasts
+    #
+    #
+    #Calculating Residuals
+    #
+    resid=backcast.wge(x,phi,theta,n.back=50)
+    #
+    #
+    #maconst=const*xbar
+    #p1=max(p+1,q+1)
+    #for (i in p1:n) {resid[i]=x[i]
+    #   if ( p > 0) {for (jp in 1:p) {resid[i]=resid[i]-phi[jp]*x[i-jp]}}
+    #   if (q > 0) {for (jq in 1:q) {resid[i]=resid[i]+theta[jq]*resid[i-jq]}}
+    #                   resid[i]=resid[i]-maconst}
+    #
+    # Calculating Forecasts
+    #
+    #
+    npn.ahead=n+n.ahead
+    xhat=rep(0,npn.ahead)
+    mm=n
+    #
+    #lastn = TRUE
+    #
+    if(lastn==TRUE) {mm=n-n.ahead}
+    #
+    #
+    for (i in 1:mm) {xhat[i]=x[i]}
+    for (h in 1:n.ahead) {
+      if (p > 0) {for (jp in 1:p) {xhat[mm+h]=xhat[mm+h]+phi[jp]*xhat[mm+h-jp]}}
+      if ((h<=q)&(h>0)) {for(jq in h:q) {xhat[mm+h]=xhat[mm+h]-theta[jq]*resid[mm+h-jq]}}
+      xhat[mm+h]=xhat[mm+h]+xbar*const}
+    #
+    #
+    #   Calculate psi weights for forecasts limits
+    #
+    #
+    xi=psi.weights.wge(phi,theta,lag.max=n.ahead)
+    #
+    #
+    #
+    #Setting up for plots
+    nap1=n.ahead+1
+    fplot=rep(0,nap1)
+    maxh=mm+n.ahead
+    llplot=rep(0,nap1)
+    ulplot=rep(0,nap1)
+    f=rep(0,nap1)
+    ll=rep(0,nap1)
+    ul=rep(0,nap1)
+    wnv=0
+    xisq=rep(0,n.ahead)
+    se=rep(0,n.ahead)
+    se0=1
+    for (i in 1:n) {wnv=wnv+resid[i]**2}
+    wnv=wnv/n
+    xisq[1]=1
+    for (i in 2:n.ahead) {xisq[i]=xisq[i-1]+xi[i-1]^2}
+    for (i in 1:n.ahead) {se[i]=sqrt(wnv*xisq[i])}
+    fplot[1]=x[mm]
+    for (i in 1:n.ahead) {fplot[i+1]=xhat[mm+i]}
+    ulplot[1]=x[mm]
+    #for (i in 1:n.ahead) { ulplot[i+1]=fplot[i+1]+1.96*se[i]}
+    for (i in 1:n.ahead) { ulplot[i+1]=fplot[i+1]-qnorm(alpha/2)*se[i]}
+    llplot[1]=x[mm]
+    #for (i in 1:n.ahead) { llplot[i+1]=fplot[i+1]-1.96*se[i]}
+    for (i in 1:n.ahead) { llplot[i+1]=fplot[i+1]+qnorm(alpha/2)*se[i]}
+    #
+    if(limits==FALSE) {
+      if(lastn==TRUE) {max=max(x,xhat[1:n])
+      min=min(x,xhat[1:n])}
+      else            {max=max(x,xhat)
+      min=min(x,xhat)}}
+    if(limits==TRUE) {min=min(x,llplot)
+    max=max(x,ulplot)}
+    #numrows <- 1
+    #numcols <- 1
+    timelab <- 'Time'
+    valuelab <- ''
+    #fig.width <- 5
+    #fig.height <- 2.5
+    cex.labs <- c(.8,.7,.8)
+    #par(mfrow=c(numrows,numcols),mar=c(6,2,3,1))
+    t<-1:n;
+    np1=n+1
+    np.ahead=mm+n.ahead
+    tf<-mm:np.ahead
+    #if (plot=='TRUE') {
+      #fig.width <- 5
+      #fig.height <- 2.5
+      #cex.labs <- c(1.2,1.2,1.2)
+      #par(mfrow=c(numrows,numcols),mar=c(9,4,3,2))
+      #plot(t,x,type='o',xaxt='n',yaxt='n',cex=.8,pch=16,cex.lab=1,cex.axis=1,lwd=1,xlab='',ylab='',xlim=c(1,maxh),ylim=c(min,max),col=1)
+      #axis(side=1,cex.axis=1.1,mgp=c(3,0.15,0),tcl=-.3);
+      #axis(side=2,las=1,cex.axis=1.1,mgp=c(3,.4,0),tcl=-.3)
+      #abline=mean(x)
+      #mtext(side=c(1,2,1),cex=cex.labs,text=c(timelab,valuelab,""),line=c(1.2,2.1,1.8))
+      #points(tf,fplot,type='o',lty=1,cex=.6,lwd=1,pch=1,col=2);
+      #if(limits=='TRUE') {points(tf,ulplot,type='l',lty=2,cex=0.6,lwd=.75,pch=1,col=4)
+        #points(tf,llplot,type='l',lty=3,cex=0.6,lwd=.75,pch=1,col=4)
+     # }
+    #}
+    np1=n+1
+    nap1=n.ahead+1
+    f=fplot[2:nap1]
+    # Calculate RMSE and MAD
+    if(lastn==TRUE){
+      t.start=n-n.ahead
+      sum.rmse=0
+      sum.mad=0
+      for(i in 1:n.ahead) {sum.rmse=sum.rmse+(f[i]-x[t.start+i])^2
+      sum.mad=sum.mad+abs(f[i]-x[t.start+i])}
+      mse=sum.rmse/n.ahead
+      rmse=sqrt(mse)
+      mad=sum.mad/n.ahead
+    }
+    ll=llplot[2:nap1]
+    ul=ulplot[2:nap1]
+    if(lastn==TRUE){out1=list(f=f)}
+    if(lastn==FALSE){out1=list(f=f)}
+    return(out1)
+  }
+
+  
+  numwindows = 0
+  RMSEHolder = numeric()
+
+  
+if(s == 0 & d == 0)
+{
+  
+  trainingSize = max(length(phi),length(theta)) + 1 # The plus 1 is for the backcast residuals which helps with ARMA model with q > 0
+  numwindows = length(series)-(trainingSize + horizon) + 1   
+  RMSEHolder = numeric(numwindows)
+
+  # print(paste("Please Hold For a Moment, TSWGE is processing the Rolling Window RMSE with", numwindows, "windows."))
+  
+  for( i in 1:numwindows)
+  {
+    forecasts <- fore.arma.wge2(series[i:(i+(trainingSize-1))], plot = TRUE, phi = phi, theta = theta,n.ahead = horizon, xbar = mean(series))
+
+    RMSE = sqrt(mean((series[(trainingSize+i):(trainingSize+ i + (horizon) - 1)] - forecasts$f)^2))
+    
+    RMSEHolder[i] = RMSE
+  }
+}
+else
+  {
+    trainingSize = sum(length(phi),length(theta),s, d) + 1 # sum and plus one is to help backcast.wge, lag.max and ylim plotting issue in fore.arima.wge
+    numwindows = length(series)-(trainingSize + horizon) + 1
+    RMSEHolder = numeric(numwindows)
+
+    # print(paste("Please Hold For a Moment, TSWGE is processing the Rolling Window RMSE with", numwindows, "windows."))
+    
+    for( i in 1:numwindows)
+    {
+      #invisible(capture.output(forecasts <- fore.arima.wge(series[i:(i+(trainingSize-1))],phi = phis, theta = thetas, s = s, d = d,n.ahead = horizon)))
+      forecasts <- fore.aruma.wge(series[i:(i+(trainingSize-1))],phi = phi, s = s, d = d, theta = theta,n.ahead = horizon, plot=plot)
+      
+      RMSE = sqrt(mean((series[(trainingSize+i):(trainingSize+ i + (horizon) - 1)] - forecasts$f)^2))
+      
+      RMSEHolder[i] = RMSE
+      
+    }
+  }
+  
+  
+  RMSEHolder
+  #hist(RMSEHolder, main = "RMSEs for Individual Windows")
+  WindowedRMSE = mean(RMSEHolder)
+  
+  # print("The Summary Statistics for the Rolling Window RMSE Are:")
+  # print(summary(RMSEHolder))
+  # print(paste("The Rolling Window RMSE is: ",round(WindowedRMSE,3)))
+
+#output
+  invisible(list(rwRMSE = WindowedRMSE, trainingSize = trainingSize, numwindows = numwindows, horizon = horizon, s = s, d = d, phi = phi, theta = theta, RMSEs = RMSEHolder))
+  
+  }
 ```
 
