@@ -177,9 +177,22 @@ library(ggplot2)
 df[['DATE']] <- as.Date(df[['DATE']], format='%Y-%m-%d')
 
 # Convert short term prediction to dataframe
+pred.short = fore.arima.wge(df$AVG_EP, phi = model1.param$model.coef, theta = params.est$theta,
+                            d = 1, n.ahead = 3, limits = T, lastn = F)
+pred.long = fore.arima.wge(df$AVG_EP, phi = model1.param$model.coef, theta = params.est$theta,
+                            d = 1, n.ahead = 36, limits = T, lastn = F)
+
 pred.short.df = data.frame(Date = df$DATE[264:266], prediction = pred.short$f, upper = pred.short$ul, lower = pred.short$ll)
 
-colors <- c("Actual Price" = "#FC4E07", "Predicted Price" = "#E7B800", "Prediction Limit"= "#E7B800")
+colors <- c("Actual Price" = "#00AFBB", "Predicted Price" = "#FC4E07", "Prediction Limit"= "#E7B800")
+
+# Original TS plot:
+ggplot(data = df[1:266,], aes(x=DATE, y=AVG_EP))+
+  geom_line(color="#00AFBB", size = 1) +
+  geom_point(color="#00AFBB") +
+  ggtitle("Electricity Price Over time")+xlab("Date")+ylab("Average Price") + theme_classic()
+
+
 ggplot(data = df[260:266,], aes(x=DATE, y=AVG_EP, color="Actual Price"))+
   geom_line( size = 1) +
   ggtitle("Short term average Electricity price forecast")+xlab("Date")+ylab("Average Price") +
@@ -282,7 +295,7 @@ EP_est_12_0 = est.arma.wge(AVE_EP_d1,p=12)
 #  2.661653e-05
 f.short.12.0 = fore.arima.wge(df$AVG_EP,phi=EP_est_12_0$phi,d=1,n.ahead=3,lastn=TRUE)
 ASE.short = mean((df$AVG_EP[264:266]-f.short.12.0$f)^2)
-ASE.short # 8.029078e-05 -> 0.0000893
+ASE.short # 8.029078e-05 -> 0.0000803
 
 # 36 month ARIMA(12,1,0)
 # roll.win.ase.wge(df$AVG_EP,horizon=36,d=1,phis=EP_est_12_0$phi)
