@@ -382,10 +382,12 @@ best_q_narrow_ricco = 0
 best_cost_narrow_ricco = 10000
 best_rsme_s0_d1_p_search_narrow = 10000.0
 best_last36_ase_narrow = 10000.0
-min_q_narrow_ricco = which.max(c(1, best_q_wide_ricco-2))
-min_p_narrow_ricco = which.max(c(1, best_p_wide_ricco-4))
-q_seq_narrow_ricco = seq(min_q_narrow_ricco, best_q_wide_ricco+2, 1)
-p_seq_narrow_ricco = seq(min_p_narrow_ricco, best_q_wide_ricco+4, 1)
+min_q_narrow_ricco = max(c(1, best_q_wide_ricco-2))
+min_p_narrow_ricco = max(c(1, best_p_wide_ricco-4))
+q_seq_narrow_ricco = seq(min_q_narrow_ricco, best_q_wide_ricco+1, 1)
+p_seq_narrow_ricco = seq(min_p_narrow_ricco, best_p_wide_ricco+2, 1)
+
+best_arma_estimates = NULL
 for(q_try in q_seq_narrow_ricco) {
   for (p_try in p_seq_narrow_ricco) {
     was_error = FALSE
@@ -403,6 +405,7 @@ for(q_try in q_seq_narrow_ricco) {
         best_last36_ase_narrow = prediction_ase_ricco
         best_p_narrow_ricco = p_try
         best_q_narrow_ricco = q_try
+        best_arma_estimates = est_p_q_search_ricco
       }
     },
     error = function(e) {
@@ -420,12 +423,12 @@ best_rsme_s0_d1_p_search_narrow^2
 best_last36_ase_narrow
 
 
-# best P was p=31 q=0, WOW! A huge and complex model BUT it was rolling window RSME verified!
-#  I wonder how the ARIMA(31,1,0) would do on future, unseen data. it’s probably just REALLY good at fitting the signal we have, even if we rolling window verify. true cross-validation would be better, if we had the data.
+# best P was p=30 q=11, WOW! A huge and complex model BUT it was rolling window RSME verified!
+#  I wonder how the ARIMA(30,1,11) would do on future, unseen data. it’s probably just REALLY good at fitting the signal we have, even if we rolling window verify. true cross-validation would be better, if we had the data.
 print(paste("best long rolling (36) ase was:", best_rsme_s0_d1_p_search^2, "for p:", best_p_ricco, "for q:", best_q_ricco, "and d = 1"))
-f_ricco = fore.aruma.wge(df$AVG_EP, phi=best_phi_estimates, d = 1, s=0, n.ahead=36, lastn=TRUE)
+f_ricco = fore.aruma.wge(df$AVG_EP, phi=best_arma_estimates$phi, theta = best_arma_estimates$theta, d = 1, s=0, n.ahead=36, lastn=TRUE)
 prediction_ase_ricco = mean((df$AVG_EP[(266-35):266]-f$f)^2) 
-print(paste("Last 36 ASE was s:", prediction_ase_ricco, "for p:", best_p_ricco, "and d = 1"))
+print(paste("Last 36 ASE was s:", prediction_ase_ricco, "for p:", best_p_narrow_ricco, "q:" , best_q_narrow_ricco, "and d = 1"))
 
 # interestingly the ARIMA(72,1,0) does poorly on the last few samples! maybe a slightly different process? 
 #If we look at the plot we can see that there is periodicity in the data until JUST when the forecasts start. I believe it's this periodicity that is messing things up. 
