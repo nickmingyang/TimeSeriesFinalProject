@@ -18,8 +18,8 @@ library(dplyr)
 library(tidyverse)
 library(readxl)
 # Set this to data folder for your file
-setwd("/Users/riccoferraro/Documents/SMU/TimeSeries/TimeSeriesFinalProject/data")
-
+#setwd("/Users/riccoferraro/Documents/SMU/TimeSeries/TimeSeriesFinalProject/data")
+setwd("/Users/mingyang/Desktop/SMU/TimeSeries/TimeSeriesFinalProject/data")
 # Read in DFWA electricity Data
 dfwa.electricity = read.csv("AVG_ELEC_DFWA_TX.csv",col.names = c("DATE", "AVG_EP"), 
                           colClasses = c(DATE="character", AVG_EP="character"))
@@ -186,9 +186,9 @@ plot(t, df$AVG_EP[250:266], type='o',xaxt='n',yaxt='n',cex=.8,pch=16,cex.lab=1,c
 axis(side=1,cex.axis=1.1,mgp=c(3,0.15,0),tcl=-.3)
 axis(side=2,las=1,cex.axis=1.1,mgp=c(3,.4,0),tcl=-.3)
 mtext(side=c(1,2,1),cex=c(1.2,1.2,1.2),text=c("Time","",""),line=c(1.2,2.1,1.8))
-points(266:269,c(df$AVG_EP[266:266],pred.short$f),type='o',lty=1,cex=.6,lwd=1,pch=1,col=2)
-points(266:269,c(df$AVG_EP[266:266],pred.short$ul),type='l',lty=3,cex=0.6,lwd=2,pch=1,col='blue3')
-points(266:269,c(df$AVG_EP[266:266],pred.short$ll),type='l',lty=3,cex=0.6,lwd=2,pch=1,col='blue3')
+points(266:269,c(df$AVG_EP[266:266],f.short.15.5$f),type='o',lty=1,cex=.6,lwd=1,pch=1,col=2)
+points(266:269,c(df$AVG_EP[266:266],f.short.15.5$ul),type='l',lty=3,cex=0.6,lwd=2,pch=1,col='blue3')
+points(266:269,c(df$AVG_EP[266:266],f.short.15.5$ll),type='l',lty=3,cex=0.6,lwd=2,pch=1,col='blue3')
 
 pred.long = fore.arima.wge(df$AVG_EP, phi = model1.param$model.coef, theta = params.est$theta,
                             d = 1, n.ahead = 36, limits = T, lastn = F)
