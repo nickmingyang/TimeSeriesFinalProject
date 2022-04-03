@@ -444,17 +444,28 @@ print(paste("best long + immediate rolling window q with narrow search was:", be
 
 best_rsme_s0_d1_p_search_narrow^2
 best_last36_ase_narrow
-
+length(df$AVG_EP)
 
 # best P was p=30 q=11, WOW! A huge and complex model BUT it was rolling window RSME verified!
 #  I wonder how the ARIMA(30,1,11) would do on future, unseen data. it’s probably just REALLY good at fitting the signal we have, even if we rolling window verify. true cross-validation would be better, if we had the data.
 print(paste("best long rolling (36) ase was:", best_rsme_s0_d1_p_search^2, "for p:", best_p_ricco, "for q:", best_q_ricco, "and d = 1"))
-f_ricco = fore.aruma.wge(df$AVG_EP, phi=best_arma_estimates$phi, theta = best_arma_estimates$theta, d = 1, s=0, n.ahead=36, lastn=TRUE)
-prediction_ase_ricco = mean((df$AVG_EP[(266-35):266]-f$f)^2) 
-print(paste("Last 36 ASE was s:", prediction_ase_ricco, "for p:", best_p_narrow_ricco, "q:" , best_q_narrow_ricco, "and d = 1"))
 
-# interestingly the ARIMA(72,1,0) does poorly on the last few samples! maybe a slightly different process? 
-#If we look at the plot we can see that there is periodicity in the data until JUST when the forecasts start. I believe it's this periodicity that is messing things up. 
+# last 3 ASE
+f_ricco_3 = fore.aruma.wge(df$AVG_EP, phi=best_arma_estimates$phi, theta = best_arma_estimates$theta, d=1, s=0, n.ahead=3, lastn=TRUE)
+prediction_ase_ricco_3 = mean((df$AVG_EP[(266-3):266]-f_ricco_3$f)^2) 
+print(paste("Last 3 ASE was s:", prediction_ase_ricco_3, "for p:", best_p_narrow_ricco, "q:" , best_q_narrow_ricco, "and d = 1"))
+
+# last 36 ASE
+f_ricco_36 = fore.aruma.wge(df$AVG_EP, phi=best_arma_estimates$phi, theta = best_arma_estimates$theta, d=1, s=0, n.ahead=36, lastn=TRUE)
+prediction_ase_ricco_36 = mean((df$AVG_EP[(266-35):266]-f_ricco_36$f)^2) 
+print(paste("Last 36 ASE was s:", prediction_ase_ricco_36, "for p:", best_p_narrow_ricco, "q:" , best_q_narrow_ricco, "and d = 1"))
+rolling.res.short_ricco = roll.win.rmse.wge_ricco(df$AVG_EP, phi=best_arma_estimates$phi, theta=best_arma_estimates$theta, d=1, s=0,  horizon = 3, plot=FALSE)
+
+# Rolling 
+rolling.res.short_ricco$rwRMSE^2
+best_arma_estimates_SSE = sum(best_arma_estimates$res^2)
+aic = 266*log(best_arma_estimates_SSE/266) +2*(30+11+1)
+aic
 
 # residuals look VERY white, maybe a slight amount of heteroskeascitity and trend at the very end? 
 plotts.sample.wge(f_ricco$resid)
@@ -462,6 +473,7 @@ plotts.sample.wge(f_ricco$resid)
 # interestingly, ljung box test cannot reject non-stationarity in the residuals! This seems weird. 
 ljung.wge(f_ricco$resid)
 
+best_arma_estimates
 ```
 
 Appendix:
