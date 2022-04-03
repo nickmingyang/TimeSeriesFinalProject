@@ -232,7 +232,7 @@ test_ASE_p3_long # 9.241909e-05 -> 0.00009242
 
 ```{r}
 # Short Term Forecast - VAR best model
-dev.off()
+
 t = 200:233
 plot(t, df$AVG_EP[200:233], type='o',xaxt='n',yaxt='n',cex=.8,pch=16,cex.lab=1,cex.axis=1,lwd=1,xlab='',ylab='',xlim=c(200, 236),ylim=c(0.10,0.16),col=1)
 axis(side=1,cex.axis=1.0,mgp=c(3,0.15,0),tcl=-.3)
@@ -244,7 +244,7 @@ points(230:233,c(df$AVG_EP[230:230],preds.p3.short$fcst$AVG_EP[,3]),type='l',lty
 points(230:233,c(df$AVG_EP[230:230],preds.p3.short$fcst$AVG_EP[,2]),type='l',lty=3,cex=0.6,lwd=2,pch=1,col='blue3')
 
 # Long Term Forecast - VAR best model
-dev.off()
+
 t = 1:266
 plot(t, df$AVG_EP[1:266], type='l',xaxt='n',yaxt='n',cex=.8,pch=16,cex.lab=1,cex.axis=1,lwd=1,xlab='',ylab='',xlim=c(1, 266),ylim=c(0.05,0.18),col=1)
 axis(side=1,cex.axis=1.0,mgp=c(3,0.15,0),tcl=-.3)
@@ -306,7 +306,6 @@ test_ASE_mlp1_long # 0.000111
 
 ```{r}
 # Short Term Forecast - MLP model
-dev.off()
 t = 200:233
 plot(t, df$AVG_EP[200:233], type='o',xaxt='n',yaxt='n',cex=.8,pch=16,cex.lab=1,cex.axis=1,lwd=1,xlab='',ylab='',xlim=c(200, 236),ylim=c(0.10,0.16),col=1)
 axis(side=1,cex.axis=1.0,mgp=c(3,0.15,0),tcl=-.3)
@@ -317,7 +316,6 @@ points(230:233,c(df$AVG_EP[230:230],fore.mlp1.short$mean[1:3]),type='o',lty=1,ce
 
 
 # Long Term Forecast - VAR best model
-dev.off()
 t = 1:266
 plot(t, df$AVG_EP[1:266], type='l',xaxt='n',yaxt='n',cex=.8,pch=16,cex.lab=1,cex.axis=1,lwd=1,xlab='',ylab='',xlim=c(1, 266),ylim=c(0.05,0.18),col=1)
 axis(side=1,cex.axis=1.0,mgp=c(3,0.15,0),tcl=-.3)
@@ -343,7 +341,6 @@ test_ASE_ensemble1.long # 7.819804e-05 -> 0.0000782
 
 ```{r}
 # Short Term Forecast - Ensemble model
-dev.off()
 t = 200:233
 plot(t, df$AVG_EP[200:233], type='o',xaxt='n',yaxt='n',cex=.8,pch=16,cex.lab=1,cex.axis=1,lwd=1,xlab='',ylab='',xlim=c(200, 236),ylim=c(0.10,0.16),col=1)
 axis(side=1,cex.axis=1.0,mgp=c(3,0.15,0),tcl=-.3)
@@ -354,7 +351,6 @@ points(230:233,c(df$AVG_EP[230:230],ensemble.forecast.short),type='o',lty=1,cex=
 
 
 # Long Term Forecast - Ensemble best model
-dev.off()
 t = 1:266
 plot(t, df$AVG_EP[1:266], type='l',xaxt='n',yaxt='n',cex=.8,pch=16,cex.lab=1,cex.axis=1,lwd=1,xlab='',ylab='',xlim=c(1, 266),ylim=c(0.05,0.18),col=1)
 axis(side=1,cex.axis=1.0,mgp=c(3,0.15,0),tcl=-.3)
