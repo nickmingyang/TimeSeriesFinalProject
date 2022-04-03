@@ -5,18 +5,23 @@ date: '2022-03-26'
 output: html_document
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE, warning= FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
 #### Data Read in & Wrangling
+- This part is for reading in all related data frame, cleaning them extracting all data from 2000-1 - 2022-02 time period
+- The resulting data frame is stored under 'df' variable
+- You can run whole chunk directly after fixed file location
 
-```{r}
-#libraries
+```{r, warning= FALSE, message=FALSE}
+
 library(tswge)
 library(dplyr)
 library(tidyverse)
 library(readxl)
+library(vars)
+library(nnfor)
 # Set this to data folder for your file
 #setwd("/Users/riccoferraro/Documents/SMU/TimeSeries/TimeSeriesFinalProject/data")
 setwd("/Users/mingyang/Desktop/SMU/TimeSeries/TimeSeriesFinalProject/data")
@@ -47,7 +52,6 @@ temp = temp[1:386,]
 # which(dfwa.electricity$DATE=="1990-01-01") # 135
 dfwa.electricity = dfwa.electricity[135:520,]
 rownames(dfwa.electricity) <- 1:nrow(dfwa.electricity)
-dfwa.electricity
 
 # which(cpi$Year==1990 & cpi$Period=="M01")
 cpi = cpi[91:476,]
@@ -137,7 +141,9 @@ ASE.long # 0.0001725023
 
 ```
 
-#### Try signal plus noise model
+#### Univariate signal plus noise model
+- This section created a signal plus noise model. However, was not utilized as the final model during presentation
+- There is no rolling window ASE to be used for comparison with other models only test ASE
 ```{r}
 x = df$AVG_EP
 n = length(x)
@@ -172,8 +178,195 @@ ASE.long.m2 # 0.0001268439
 
 ```
 
-#### Visualization
+#### Multivariate - VAR model
 ```{r}
+train.var = df[1:230,2:5]
+test.var = df[231:266,2:5]
+
+# Prior to fitting looking at correlation plot to get an idea
+ccf(train.var$CPI, train.var$AVG_EP)
+# Looks like Gas Price lag2 is most correlated with electricity price
+ccf(train.var$GAS_P, train.var$AVG_EP)
+# lag 0 or 1 of temperature seems most correlated with electricity price ( although this correlation is weaker compared to Gas and CPI)
+ccf(train.var$TEMP, train.var$AVG_EP)
+
+# AIC and FPE selected lag = 11, Schwarz Criterion selected lag = 6, Hannan Quinn Criterion selected lag = 3
+# Try them all and compare their short term and long term ASE
+VARselect(train.var, lag.max=15, type="both", season = NULL, exogen = NULL)
+# Try lag = 11
+lsfit.p11 = VAR(train.var, p = 11, type ="both")
+preds.p11.short = predict(lsfit.p11, n.ahead = 3)
+preds.p11.long = predict(lsfit.p11, n.ahead = 36)
+
+test_ASE_p11_short = mean((preds.p11.short$fcst$AVG_EP[,1]-test.var$AVG_EP[1:3])^2)
+test_ASE_p11_short # 1.40152e-05 -> 0.000014
+
+test_ASE_p11_long = mean((preds.p11.long$fcst$AVG_EP[,1]-test.var$AVG_EP[1:36])^2)
+test_ASE_p11_long # 0.0001447111
+
+# Try lag = 6
+lsfit.p6 = VAR(train.var, p = 6, type ="both")
+preds.p6.short = predict(lsfit.p6, n.ahead = 3)
+preds.p6.long = predict(lsfit.p6, n.ahead = 36)
+
+test_ASE_p6_short = mean((preds.p6.short$fcst$AVG_EP[,1]-test.var$AVG_EP[1:3])^2)
+test_ASE_p6_short # 9.127952e-06 -> 0.00000913
+
+test_ASE_p6_long = mean((preds.p6.long$fcst$AVG_EP[,1]-test.var$AVG_EP[1:36])^2)
+test_ASE_p6_long # 0.0001166065
+
+# Try lag = 3
+lsfit.p3 = VAR(train.var, p = 3, type ="both")
+preds.p3.short = predict(lsfit.p3, n.ahead = 3)
+preds.p3.long = predict(lsfit.p3, n.ahead = 36)
+
+test_ASE_p3_short = mean((preds.p3.short$fcst$AVG_EP[,1]-test.var$AVG_EP[1:3])^2)
+test_ASE_p3_short # 2.780987e-06 -> 0.000002781
+
+test_ASE_p3_long = mean((preds.p3.long$fcst$AVG_EP[,1]-test.var$AVG_EP[1:36])^2)
+test_ASE_p3_long # 9.241909e-05 -> 0.00009242
+
+```
+
+#### Visualization for VAR best model lag = 3
+
+```{r}
+# Short Term Forecast - VAR best model
+dev.off()
+t = 200:233
+plot(t, df$AVG_EP[200:233], type='o',xaxt='n',yaxt='n',cex=.8,pch=16,cex.lab=1,cex.axis=1,lwd=1,xlab='',ylab='',xlim=c(200, 236),ylim=c(0.10,0.16),col=1)
+axis(side=1,cex.axis=1.0,mgp=c(3,0.15,0),tcl=-.3)
+axis(side=2,las=1,cex.axis=1.0,mgp=c(3,.4,0),tcl=-.3)
+mtext(side=c(1,2,1),cex=c(1.1,1.1,1.1),text=c("Time","Price",""),line=c(1.2,2.1,1.8))
+title("Short Term Average Electricity Price Forecast VAR")
+points(230:233,c(df$AVG_EP[230:230],preds.p3.short$fcst$AVG_EP[,1]),type='o',lty=1,cex=.6,lwd=1,pch=1,col=2)
+points(230:233,c(df$AVG_EP[230:230],preds.p3.short$fcst$AVG_EP[,3]),type='l',lty=3,cex=0.6,lwd=2,pch=1,col='blue3')
+points(230:233,c(df$AVG_EP[230:230],preds.p3.short$fcst$AVG_EP[,2]),type='l',lty=3,cex=0.6,lwd=2,pch=1,col='blue3')
+
+# Long Term Forecast - VAR best model
+dev.off()
+t = 1:266
+plot(t, df$AVG_EP[1:266], type='l',xaxt='n',yaxt='n',cex=.8,pch=16,cex.lab=1,cex.axis=1,lwd=1,xlab='',ylab='',xlim=c(1, 266),ylim=c(0.05,0.18),col=1)
+axis(side=1,cex.axis=1.0,mgp=c(3,0.15,0),tcl=-.3)
+axis(side=2,las=1,cex.axis=1.0,mgp=c(3,.4,0),tcl=-.3)
+mtext(side=c(1,2,1),cex=c(1.0,1.0,1.0),text=c("Time","Price",""),line=c(1.2,2.1,1.8))
+title("Long Term Average Electricity Price Forecast VAR")
+points(230:266,c(df$AVG_EP[230:230],preds.p3.long$fcst$AVG_EP[,1]),type='o',lty=1,cex=.6,lwd=1,pch=1,col=2)
+points(230:266,c(df$AVG_EP[230:230],preds.p3.long$fcst$AVG_EP[,3]),type='l',lty=3,cex=0.6,lwd=2,pch=1,col='blue3')
+points(230:266,c(df$AVG_EP[230:230],preds.p3.long$fcst$AVG_EP[,2]),type='l',lty=3,cex=0.6,lwd=2,pch=1,col='blue3')
+
+```
+
+#### Multi Layer Perceptural - Neural Network Model
+```{r}
+df.train = ts(df[1:230,2], start = c(2000,1), frequency = 12)
+df.test = ts(df[231:266,2], start=c(2019,3), frequency = 12)
+
+other.predictors.train = df[1:230,3:5]
+set.seed(2)
+fit.mlp1 = mlp(df.train, reps = 20, comb = "median", xreg = other.predictors.train,
+               xreg.lags = c(1,1,1), allow.det.season = FALSE, hd = 5, difforder = 0, sel.lag = FALSE)
+fit.mlp1
+plot(fit.mlp1)
+
+# Forecast next 36 CPI
+set.seed(2)
+fit.mlp.cpi = mlp(ts(df$CPI[1:230], start = c(2000,1), frequency = 12), reps = 20, comb = "median",
+                  allow.det.season = TRUE)
+fore.mlp.cpi = forecast(fit.mlp.cpi, h=36)
+plot(fore.mlp.cpi)
+# Forecast next 36 Gas_P
+set.seed(2)
+fit.mlp.gas = mlp(ts(df$GAS_P[1:230], start = c(2000,1), frequency = 12), reps = 20, comb = "median",
+                  allow.det.season = TRUE)
+fore.mlp.gas = forecast(fit.mlp.gas, h=36)
+plot(fore.mlp.gas)
+
+# Forecast next 36 Temperature
+set.seed(2)
+fit.mlp.temp = mlp(ts(df$TEMP[1:230], start = c(2000,1), frequency = 12), reps = 20, comb = "median",
+                  allow.det.season = TRUE)
+fore.mlp.temp = forecast(fit.mlp.temp, h=36)
+plot(fore.mlp.temp)
+
+other.predictors.with.forecast = data.frame(CPI = c(df$CPI[1:230],fore.mlp.cpi$mean[1:36]),
+                                            GAS_P = c(df$GAS_P[1:230],fore.mlp.gas$mean[1:36]),
+                                            GAS_P = c(df$TEMP[1:230],fore.mlp.temp$mean[1:36]))
+fore.mlp1.short = forecast(fit.mlp1, h=3, xreg = other.predictors.with.forecast)
+test_ASE_mlp1_short = mean((fore.mlp1.short$mean[1:3]-df$AVG_EP[231:233])^2)
+test_ASE_mlp1_short # 1.947679e-05 -> 0.00001947
+
+fore.mlp1.long = forecast(fit.mlp1, h=36, xreg = other.predictors.with.forecast)
+test_ASE_mlp1_long = mean((fore.mlp1.long$mean[1:36]-df$AVG_EP[231:266])^2)
+test_ASE_mlp1_long # 0.000111
+
+```
+
+#### Visualization for NN Model
+
+```{r}
+# Short Term Forecast - MLP model
+dev.off()
+t = 200:233
+plot(t, df$AVG_EP[200:233], type='o',xaxt='n',yaxt='n',cex=.8,pch=16,cex.lab=1,cex.axis=1,lwd=1,xlab='',ylab='',xlim=c(200, 236),ylim=c(0.10,0.16),col=1)
+axis(side=1,cex.axis=1.0,mgp=c(3,0.15,0),tcl=-.3)
+axis(side=2,las=1,cex.axis=1.0,mgp=c(3,.4,0),tcl=-.3)
+mtext(side=c(1,2,1),cex=c(1.1,1.1,1.1),text=c("Time","Price",""),line=c(1.2,2.1,1.8))
+title("Short Term Average Electricity Price Forecast MLP")
+points(230:233,c(df$AVG_EP[230:230],fore.mlp1.short$mean[1:3]),type='o',lty=1,cex=.6,lwd=1,pch=1,col=2)
+
+
+# Long Term Forecast - VAR best model
+dev.off()
+t = 1:266
+plot(t, df$AVG_EP[1:266], type='l',xaxt='n',yaxt='n',cex=.8,pch=16,cex.lab=1,cex.axis=1,lwd=1,xlab='',ylab='',xlim=c(1, 266),ylim=c(0.05,0.18),col=1)
+axis(side=1,cex.axis=1.0,mgp=c(3,0.15,0),tcl=-.3)
+axis(side=2,las=1,cex.axis=1.0,mgp=c(3,.4,0),tcl=-.3)
+mtext(side=c(1,2,1),cex=c(1.0,1.0,1.0),text=c("Time","Price",""),line=c(1.2,2.1,1.8))
+title("Long Term Average Electricity Price Forecast MLP")
+points(230:266,c(df$AVG_EP[230:230],fore.mlp1.long$mean[1:36]),type='o',lty=1,cex=.6,lwd=1,pch=1,col=2)
+
+```
+
+#### Ensemble ARIMA(7,1,4), Best VAR and MLP
+```{r}
+ensemble.forecast.short = (pred.short$f+preds.p3.short$fcst$AVG_EP[,1]+fore.mlp1.short$mean[1:3])/3
+test_ASE_ensemble1.short = mean((ensemble.forecast.short-df$AVG_EP[231:233])^2)
+test_ASE_ensemble1.short # 3.312542e-06 -> 0.0000033
+
+ensemble.forecast.long = (pred.long$f+preds.p3.long$fcst$AVG_EP[,1]+fore.mlp1.long$mean[1:36])/3
+test_ASE_ensemble1.long = mean((ensemble.forecast.long-df$AVG_EP[231:266])^2)
+test_ASE_ensemble1.long # 7.819804e-05 -> 0.0000782
+```
+
+#### Visualization for Ensemble Model
+
+```{r}
+# Short Term Forecast - Ensemble model
+dev.off()
+t = 200:233
+plot(t, df$AVG_EP[200:233], type='o',xaxt='n',yaxt='n',cex=.8,pch=16,cex.lab=1,cex.axis=1,lwd=1,xlab='',ylab='',xlim=c(200, 236),ylim=c(0.10,0.16),col=1)
+axis(side=1,cex.axis=1.0,mgp=c(3,0.15,0),tcl=-.3)
+axis(side=2,las=1,cex.axis=1.0,mgp=c(3,.4,0),tcl=-.3)
+mtext(side=c(1,2,1),cex=c(1.1,1.1,1.1),text=c("Time","Price",""),line=c(1.2,2.1,1.8))
+title("Short Term Average Electricity Price Forecast Ensemble")
+points(230:233,c(df$AVG_EP[230:230],ensemble.forecast.short),type='o',lty=1,cex=.6,lwd=1,pch=1,col=2)
+
+
+# Long Term Forecast - Ensemble best model
+dev.off()
+t = 1:266
+plot(t, df$AVG_EP[1:266], type='l',xaxt='n',yaxt='n',cex=.8,pch=16,cex.lab=1,cex.axis=1,lwd=1,xlab='',ylab='',xlim=c(1, 266),ylim=c(0.05,0.18),col=1)
+axis(side=1,cex.axis=1.0,mgp=c(3,0.15,0),tcl=-.3)
+axis(side=2,las=1,cex.axis=1.0,mgp=c(3,.4,0),tcl=-.3)
+mtext(side=c(1,2,1),cex=c(1.0,1.0,1.0),text=c("Time","Price",""),line=c(1.2,2.1,1.8))
+title("Long Term Average Electricity Price Forecast Ensemble")
+points(230:266,c(df$AVG_EP[230:230],ensemble.forecast.long),type='o',lty=1,cex=.6,lwd=1,pch=1,col=2)
+
+```
+
+#### Visualization
+```{r eval = FALSE, echo = TRUE}
 library(ggplot2)
 df[['DATE']] <- as.Date(df[['DATE']], format='%Y-%m-%d')
 
@@ -320,7 +513,7 @@ ASE.long
 ```
 
 #### Trial - Ricco
-```{r}
+```{r eval = FALSE, echo = TRUE}
 plotts.sample.wge(df$AVG_EP)
 
 ## over-fit like our lives depend on it
@@ -478,7 +671,7 @@ best_arma_estimates
 
 Appendix:
 A Modified version of current roll.win.rmse.wge in github (uses `fore.aruma.wge` from cran, and doesn't print), to use the latest tswge, replace `fore.aruma.wge` with `fore.arima.wge`)
-```{r} 
+```{r eval = FALSE, echo = TRUE} 
 #Rolling Window RMSE Function
 # series is the array of the series
 # horizon is how far you want to predict into the future
@@ -494,7 +687,6 @@ A Modified version of current roll.win.rmse.wge in github (uses `fore.aruma.wge`
 roll.win.rmse.wge_ricco = function(series, horizon = 2, s = 0, d = 0, phi = 0, theta = 0, plot=FALSE)
 {
 
-  
   #DEFINE fore.arma.wge2
   
   fore.arma.wge2=function(x,phi=0,theta=0,n.ahead=5,lastn=FALSE, plot=FALSE,alpha=.05,limits=TRUE, xbar2 = NULL)
