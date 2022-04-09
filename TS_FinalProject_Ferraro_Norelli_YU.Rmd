@@ -9,7 +9,10 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-#### Data Read in & Wrangling
+## Introduction
+
+
+## Data Read in & Wrangling
 - This part is for reading in all related data frame, cleaning them extracting all data from 2000-1 - 2022-02 time period
 - The resulting data frame is stored under 'df' variable
 - You can run whole chunk directly after fixed file location
@@ -75,18 +78,38 @@ df$TEMP = temp$Temperature
 df = df[121:386,]
 rownames(df) <- 1:nrow(df)
 
+```
+
+#### Average Electricity Price vs. Time
+```{r}
 plotts.wge(df$AVG_EP)
+```
+
+#### Average CPI vs. Time
+```{r}
 plotts.wge(df$CPI)
+
+```
+
+#### Average Gas Price vs. Time
+```{r}
 plotts.wge(df$GAS_P)
+
+```
+
+#### Temperature vs. Time
+```{r}
 plotts.wge(df$TEMP)
 ```
 
+## Modeling and Forecasting
 #### EDA and Univariate Modeling
 - Short term forecast horizon is determined to be 3 month since it might be helpful for short term enerage usage planning
 - Long term forecast horizen is determined to be 36 month, since it is helpful to forecast pricing few years out for infrastructure and budget planning
+
 ```{r}
 # There seem to be a slowly damping behavior which might support difference the data
-plotts.sample.wge(df$AVG_EP)
+fig1 = plotts.sample.wge(df$AVG_EP)
 
 # Try overfitting
 est = est.ar.wge(df$AVG_EP, p=16, type='burg')
@@ -99,7 +122,7 @@ factor.wge(phi = c(rep(0,11),1))
 d1 = artrans.wge(df$AVG_EP, phi.tr = 1)
 # with the differenced data there seem to have some sort of seasonal behavior at 12 left
 d1.12 = artrans.wge(d1, phi.tr = c(rep(0,11),0.4))
-dev.off()
+par(mfrow=c(1,1))
 acf(d1.12) # AIC looks about white noise
 ljung.wge(d1.12, K=24) # K=24 reject white noise hypothesis
 ljung.wge(d1.12, K=48) # K = 48 reject white noise 
@@ -111,6 +134,7 @@ ljung.wge(d1.12, K=48) # K = 48 reject white noise
 # seems AIC leaning towards a fancy model, while bic leaning towards white noise.
 # I will attempt something in the middle by using AR(1) instead
 params.est = est.arma.wge(d1.12, p=1)
+
 acf(params.est$res) # residuals looks about white noise
 ljung.wge(params.est$res, K=24) # K=24 reject white noise hypothesis
 ljung.wge(params.est$res, K=48) # K = 48reject null hypothesis of white noise
@@ -141,6 +165,17 @@ ASE.long # 0.0001725023
 
 ```
 
+
+#### Forecasting with all training data available to the future
+
+```{r}
+pred.all.short = fore.arima.wge(df$AVG_EP, phi = model1.param$model.coef, theta = params.est$theta,
+                            d = 1, n.ahead = 3, limits = T, lastn = F)
+
+pred.all.long = fore.arima.wge(df$AVG_EP, phi = model1.param$model.coef, theta = params.est$theta,
+                            d = 1, n.ahead = 36, limits = T, lastn = F)
+```
+
 #### Univariate signal plus noise model
 - This section created a signal plus noise model. However, was not utilized as the final model during presentation
 - There is no rolling window ASE to be used for comparison with other models only test ASE
@@ -151,7 +186,7 @@ t = 1:n
 d = lm(x~t)
 # x.z are the residuals from the regression line
 x.z = x-d$coefficients[1] - d$coefficients[2]*t
-plotts.sample.wge(x.z)
+fig2 = plotts.sample.wge(x.z)
 
 ar.z = aic.wge(x.z, p=0:15)
 x.trans = artrans.wge(x, phi.tr = ar.z$phi)
@@ -164,10 +199,10 @@ summary(fit)
 wbg.boot.wge(x, sn=103)
 # Bootstrap-based test for trend failed to reject with p-value = 0.1078, however we will proceed to try out how using trend helps
 ar.est = est.ar.wge(x = x.z, p=14, type = 'burg')
-dev.off()
+par(mfrow=c(1,1))
 acf(ar.est$res)
-ljung.wge(ar.est$res)
-ljung.wge(ar.est$res, K=48)
+ljtest.3 = ljung.wge(ar.est$res)
+ljtest.4 = ljung.wge(ar.est$res, K=48)
 # both tests reject white noise
 m2.result = fore.sigplusnoise.wge(x, linear = TRUE, max.p = 15, n.ahead = 3, lastn = TRUE, limits=TRUE)
 ASE.short.m2 = mean((df$AVG_EP[264:266]-m2.result$f)^2)
@@ -179,6 +214,7 @@ ASE.long.m2 # 0.0001268439
 ```
 
 #### Multivariate - VAR model
+
 ```{r}
 train.var = df[1:230,2:5]
 test.var = df[231:266,2:5]
@@ -257,6 +293,36 @@ points(230:266,c(df$AVG_EP[230:230],preds.p3.long$fcst$AVG_EP[,2]),type='l',lty=
 
 ```
 
+#### Forecasting out short and Long term with all training data
+
+```{r}
+VARselect(df[,2:5], lag.max = 15, type = "both")
+var.model = VAR(df[,2:5], p=3,type = "both")
+forecast.3month = predict(var.model, n.ahead = 3)
+forecast.36month = predict(var.model, n.ahead = 36)
+# Plot Short Term
+t = 250:266
+plot(t, df$AVG_EP[250:266], type='o',xaxt='n',yaxt='n',cex=.8,pch=16,cex.lab=1,cex.axis=1,lwd=1,xlab='',ylab='',xlim=c(250, 270),ylim=c(0.12,0.18),col=1)
+axis(side=1,cex.axis=1.0,mgp=c(3,0.15,0),tcl=-.3)
+axis(side=2,las=1,cex.axis=1.0,mgp=c(3,.4,0),tcl=-.3)
+mtext(side=c(1,2,1),cex=c(1.1,1.1,1.1),text=c("Time","",""),line=c(1.2,2.1,1.8))
+title("Short Term Average Electricity Price Forecast VAR")
+points(266:269,c(df$AVG_EP[266:266],forecast.3month$fcst$AVG_EP[,1]),type='o',lty=1,cex=.6,lwd=1,pch=1,col=2)
+points(266:269,c(df$AVG_EP[266:266],forecast.3month$fcst$AVG_EP[,3]),type='l',lty=3,cex=0.6,lwd=2,pch=1,col='blue3')
+points(266:269,c(df$AVG_EP[266:266],forecast.3month$fcst$AVG_EP[,2]),type='l',lty=3,cex=0.6,lwd=2,pch=1,col='blue3')
+
+t = 1:266
+plot(t, df$AVG_EP[1:266], type='l',xaxt='n',yaxt='n',cex=.8,pch=16,cex.lab=1,cex.axis=1,lwd=1,xlab='',ylab='',xlim=c(1, 302),ylim=c(0.05,0.25),col=1)
+axis(side=1,cex.axis=1.0,mgp=c(3,0.15,0),tcl=-.3)
+axis(side=2,las=1,cex.axis=1.0,mgp=c(3,.4,0),tcl=-.3)
+mtext(side=c(1,2,1),cex=c(1.0,1.0,1.0),text=c("Time","",""),line=c(1.2,2.1,1.8))
+title("Long Term Average Electricity Price Forecast VAR")
+points(266:302,c(df$AVG_EP[266:266],forecast.36month$fcst$AVG_EP[,1]),type='o',lty=1,cex=.6,lwd=1,pch=1,col=2)
+points(266:302,c(df$AVG_EP[266:266],forecast.36month$fcst$AVG_EP[,3]),type='l',lty=3,cex=0.6,lwd=2,pch=1,col='blue3')
+points(266:302,c(df$AVG_EP[266:266],forecast.36month$fcst$AVG_EP[,2]),type='l',lty=3,cex=0.6,lwd=2,pch=1,col='blue3')
+
+```
+
 #### Multi Layer Perceptural - Neural Network Model
 ```{r}
 df.train = ts(df[1:230,2], start = c(2000,1), frequency = 12)
@@ -326,7 +392,73 @@ points(230:266,c(df$AVG_EP[230:230],fore.mlp1.long$mean[1:36]),type='o',lty=1,ce
 
 ```
 
-#### Ensemble ARIMA(7,1,4), Best VAR and MLP
+#### Testing Neural Network Short Term Long term Forecasting With all training data
+
+```{r}
+df.mlp.train = ts(df[1:266,2], start = c(2000,1), frequency = 12)
+
+other.predictors.mlp.train = df[1:266,3:5]
+set.seed(2)
+fit.all.mlp = mlp(df.mlp.train, reps = 20, comb = "median", xreg = other.predictors.mlp.train,
+               xreg.lags = c(1,1,1), allow.det.season = FALSE, hd = 5, difforder = 0, sel.lag = FALSE)
+fit.all.mlp
+plot(fit.all.mlp)
+
+# Forecast next 36 CPI
+set.seed(2)
+fit.mlp.all.cpi = mlp(ts(df$CPI[1:266], start = c(2000,1), frequency = 12), reps = 20, comb = "median",
+                  allow.det.season = TRUE)
+fore.mlp.all.cpi = forecast(fit.mlp.all.cpi, h=36)
+plot(fore.mlp.all.cpi)
+# Forecast next 36 Gas_P
+set.seed(2)
+fit.mlp.all.gas = mlp(ts(df$GAS_P[1:266], start = c(2000,1), frequency = 12), reps = 20, comb = "median",
+                  allow.det.season = TRUE)
+fore.mlp.all.gas = forecast(fit.mlp.all.gas, h=36)
+plot(fore.mlp.all.gas)
+
+# Forecast next 36 Temperature
+set.seed(2)
+fit.mlp.all.temp = mlp(ts(df$TEMP[1:266], start = c(2000,1), frequency = 12), reps = 20, comb = "median",
+                  allow.det.season = TRUE)
+fore.mlp.all.temp = forecast(fit.mlp.all.temp, h=36)
+plot(fore.mlp.all.temp)
+
+other.predictors.with.forecast = data.frame(CPI = c(df$CPI[1:266],fore.mlp.all.cpi$mean[1:36]),
+                                            GAS_P = c(df$GAS_P[1:266],fore.mlp.all.gas$mean[1:36]),
+                                            GAS_P = c(df$TEMP[1:266],fore.mlp.all.temp$mean[1:36]))
+# Short Term forecast with MLP
+fore.mlp.all.short = forecast(fit.all.mlp, h=3, xreg = other.predictors.with.forecast)
+
+# Long term forecast with MLP
+fore.mlp.all.long = forecast(fit.all.mlp, h=36, xreg = other.predictors.with.forecast)
+
+
+```
+
+#### Visualization for MLP Short and Long term forecast with all training data
+
+```{r}
+t = 250:266
+plot(t, df$AVG_EP[250:266], type='o',xaxt='n',yaxt='n',cex=.8,pch=16,cex.lab=1,cex.axis=1,lwd=1,xlab='',ylab='',xlim=c(250, 270),ylim=c(0.12,0.18),col=1)
+axis(side=1,cex.axis=1.0,mgp=c(3,0.15,0),tcl=-.3)
+axis(side=2,las=1,cex.axis=1.0,mgp=c(3,.4,0),tcl=-.3)
+mtext(side=c(1,2,1),cex=c(1.1,1.1,1.1),text=c("Time","",""),line=c(1.2,2.1,1.8))
+title("Short Term Average Electricity Price Forecast MLP")
+points(266:269,c(df$AVG_EP[266:266],fore.mlp.all.short$mean[1:3]),type='o',lty=1,cex=.6,lwd=1,pch=1,col=2)
+
+t = 1:266
+plot(t, df$AVG_EP[1:266], type='l',xaxt='n',yaxt='n',cex=.8,pch=16,cex.lab=1,cex.axis=1,lwd=1,xlab='',ylab='',xlim=c(1, 302),ylim=c(0.05,0.185),col=1)
+axis(side=1,cex.axis=1.0,mgp=c(3,0.15,0),tcl=-.3)
+axis(side=2,las=1,cex.axis=1.0,mgp=c(3,.4,0),tcl=-.3)
+mtext(side=c(1,2,1),cex=c(1.0,1.0,1.0),text=c("Time","",""),line=c(1.2,2.1,1.8))
+title("Long Term Average Electricity Price Forecast MLP")
+points(266:302,c(df$AVG_EP[266:266],fore.mlp.all.long$mean[1:36]),type='o',lty=1,cex=.6,lwd=1,pch=1,col=2)
+
+```
+
+#### Ensemble ARIMA(7,1,4), Best VAR and MLP (With test data)
+
 ```{r}
 ensemble.forecast.short = (pred.short$f+preds.p3.short$fcst$AVG_EP[,1]+fore.mlp1.short$mean[1:3])/3
 test_ASE_ensemble1.short = mean((ensemble.forecast.short-df$AVG_EP[231:233])^2)
@@ -337,7 +469,7 @@ test_ASE_ensemble1.long = mean((ensemble.forecast.long-df$AVG_EP[231:266])^2)
 test_ASE_ensemble1.long # 7.819804e-05 -> 0.0000782
 ```
 
-#### Visualization for Ensemble Model
+#### Visualization for Ensemble Model With Test Data Excluded (ARIMA, VAR and MLP)
 
 ```{r}
 # Short Term Forecast - Ensemble model
@@ -361,7 +493,43 @@ points(230:266,c(df$AVG_EP[230:230],ensemble.forecast.long),type='o',lty=1,cex=.
 
 ```
 
-#### Visualization
+#### Ensemble ARIMA(7,1,4) and MLP (VAR excluded due to explosive behavior for long term prediction)
+
+```{r}
+ensemble.all.short = (pred.all.short$f+fore.mlp.all.short$mean[1:3])/2
+ensemble.all.long = (pred.all.long$f+fore.mlp.all.long$mean[1:36])/2
+
+```
+
+#### Visualization for ensemble to forecast future using all training data
+
+```{r}
+t = 250:266
+plot(t, df$AVG_EP[250:266], type='o',xaxt='n',yaxt='n',cex=.8,pch=16,cex.lab=1,cex.axis=1,lwd=1,xlab='',ylab='',xlim=c(250, 270),ylim=c(0.12,0.18),col=1)
+axis(side=1,cex.axis=1.0,mgp=c(3,0.15,0),tcl=-.3)
+axis(side=2,las=1,cex.axis=1.0,mgp=c(3,.4,0),tcl=-.3)
+mtext(side=c(1,2,1),cex=c(1.1,1.1,1.1),text=c("Time","",""),line=c(1.2,2.1,1.8))
+title("Short Term Average Electricity Price Forecast Ensemble All")
+points(266:269,c(df$AVG_EP[266:266],ensemble.all.short),type='o',lty=1,cex=.6,lwd=1,pch=1,col=2)
+
+t = 1:266
+plot(t, df$AVG_EP[1:266], type='l',xaxt='n',yaxt='n',cex=.8,pch=16,cex.lab=1,cex.axis=1,lwd=1,xlab='',ylab='',xlim=c(1, 302),ylim=c(0.05,0.185),col=1)
+axis(side=1,cex.axis=1.0,mgp=c(3,0.15,0),tcl=-.3)
+axis(side=2,las=1,cex.axis=1.0,mgp=c(3,.4,0),tcl=-.3)
+mtext(side=c(1,2,1),cex=c(1.0,1.0,1.0),text=c("Time","",""),line=c(1.2,2.1,1.8))
+title("Long Term Average Electricity Price Forecast Ensemble All")
+points(266:302,c(df$AVG_EP[266:266],fore.mlp.all.long$mean[1:36]),type='o',lty=1,cex=.6,lwd=1,pch=1,col=2)
+
+
+```
+
+
+## Conclusion
+
+## Appendix
+
+#### Visualization code 
+
 ```{r eval = FALSE, echo = TRUE}
 library(ggplot2)
 df[['DATE']] <- as.Date(df[['DATE']], format='%Y-%m-%d')
@@ -406,7 +574,7 @@ ggplot(data = df[260:266,], aes(x=DATE, y=AVG_EP, color="Actual Price"))+
 
 ```
 
-#### Trial - Nicole
+#### Additional Models - Nicole
 
 ```{r}
 plotts.sample.wge(df$AVG_EP)
@@ -509,6 +677,7 @@ ASE.long
 ```
 
 #### Trial - Ricco
+
 ```{r eval = FALSE, echo = TRUE}
 plotts.sample.wge(df$AVG_EP)
 
@@ -665,8 +834,9 @@ ljung.wge(f_ricco$resid)
 best_arma_estimates
 ```
 
-Appendix:
-A Modified version of current roll.win.rmse.wge in github (uses `fore.aruma.wge` from cran, and doesn't print), to use the latest tswge, replace `fore.aruma.wge` with `fore.arima.wge`)
+
+##### A Modified version of current roll.win.rmse.wge in github (uses `fore.aruma.wge` from cran, and doesn't print), to use the latest tswge, replace `fore.aruma.wge` with `fore.arima.wge`)
+
 ```{r eval = FALSE, echo = TRUE} 
 #Rolling Window RMSE Function
 # series is the array of the series
