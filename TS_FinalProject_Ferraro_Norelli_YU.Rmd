@@ -10,7 +10,11 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ## Introduction
-
+The objective of this analysis is to model and forecast electricity pricing time series data in the Dallas, TX area.
+Our client is the Dallas local government, and they have requested the forecasts for economic and infrastructure planning.
+The electricity pricing data is from the St. Louis Federal Reserve. We chose to model the data from January 2000 to present. Data from earlier dates had different behavior because it was before Texas deregulated electricity pricing.
+This analysis explores the use of univariate and multivariate time series models. The multivariate models include the addition of the variables Dallas temperature, Dallas gasoline prices, and southern urban consumer price index (CPI). These additional variables were obtained from the National Weather Service, the St. Louis Federal Reserve, and the Bureau of Labor Statistics.
+Univariate methods include various ARIMA models and signal plus noise. Multivariate methods include VAR, neural network (MLP), and ensemble models.
 
 ## Data Read in & Wrangling
 - This part is for reading in all related data frame, cleaning them extracting all data from 2000-1 - 2022-02 time period
@@ -179,6 +183,7 @@ pred.all.long = fore.arima.wge(df$AVG_EP, phi = model1.param$model.coef, theta =
 #### Univariate signal plus noise model
 - This section created a signal plus noise model. However, was not utilized as the final model during presentation
 - There is no rolling window ASE to be used for comparison with other models only test ASE
+
 ```{r}
 x = df$AVG_EP
 n = length(x)
@@ -324,6 +329,9 @@ points(266:302,c(df$AVG_EP[266:266],forecast.36month$fcst$AVG_EP[,2]),type='l',l
 ```
 
 #### Multi Layer Perceptural - Neural Network Model
+-Forecast final 36 values for temperature, gas, and CPI using univariate MLP models.
+-Use these predictions in multivariate MLP model to predict final 36 electricity values.
+
 ```{r}
 df.train = ts(df[1:230,2], start = c(2000,1), frequency = 12)
 df.test = ts(df[231:266,2], start=c(2019,3), frequency = 12)
@@ -561,6 +569,9 @@ points(266:302,c(df$AVG_EP[266:266],fore.mlp.all.long$mean[1:36]),type='o',lty=1
 
 
 ## Conclusion
+The final recommendation for short-term (3 month) forecasting is the VAR model with p=3. It had the best short-term test ASE of all models explored. The final recommendation for long-term (36 month) forecasting is an ensemble model that equally combines the ARIMA(7,1,4) s=12 with coefficient of 0.4 and the best MLP model. This ensemble had the best long-term (36 month) test ASE and its future forecasts looked promising.
+
+
 
 ## Appendix
 
